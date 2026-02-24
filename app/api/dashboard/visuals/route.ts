@@ -62,7 +62,6 @@ export async function GET() {
       count
     }))
     .sort((a: any, b: any) => b.count - a.count)
-    .slice(0, 5)
 
   // Monthly trend
   const monthlyMap: any = {}
