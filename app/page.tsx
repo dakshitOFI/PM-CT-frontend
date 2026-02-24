@@ -103,6 +103,8 @@ export default function Dashboard() {
   const [visuals, setVisuals] = useState<any>(null)
   const [activeNav, setActiveNav] = useState("Dashboard") // will be synced in useEffect
   const [notification, setNotification] = useState<string | null>(null)
+  const [actionsNeeded, setActionsNeeded] = useState<any[]>([])
+
 
   /* Persist navigation choice */
   useEffect(() => {
@@ -136,6 +138,8 @@ export default function Dashboard() {
   useEffect(() => {
     fetch("/api/dashboard/overview").then(r => r.json()).then(setKpis)
     fetch("/api/dashboard/visuals").then(r => r.json()).then(setVisuals)
+    // Fetch warranty data in background so it's ready for Actions Needed table
+    fetch("/api/machines/warranty").then(r => r.json()).then(setWarrantyData)
   }, [])
 
   const handleWarrantyFetch = async (delayMs = 600) => {
@@ -185,14 +189,22 @@ export default function Dashboard() {
       setAgentLoading(false);
     }
   };
-  const confirmIssue = async (id: number) => {
-    await supabase
-      .from("anomaly_reports")
-      .update({ status: "confirmed" })
-      .eq("report_id", id)
+  // const confirmIssue = async (id: number) => {
+  //   const { error } = await supabase
+  //     .from("anomaly_reports")
+  //     .update({ status: "confirmed" })
+  //     .eq("report_id", id)
 
-    fetchAnomalies()
-  }
+  //   if (!error) {
+  //     setNotification("Issue confirmed and added to Actions Needed")
+  //     setTimeout(() => setNotification(null), 3000)
+  //   } else {
+  //     console.error("Confirm error:", error)
+  //   }
+
+  //   fetchAnomalies()
+  // }
+
 
   // const deleteIssue = async (id: number) => {
   //   await supabase
@@ -202,6 +214,18 @@ export default function Dashboard() {
 
   //   fetchAnomalies()
   // }
+
+  const confirmIssue = (item: any) => {
+    // Prevent duplicate
+    const alreadyExists = actionsNeeded.some(a => a.report_id === item.report_id)
+    if (alreadyExists) return
+
+    setActionsNeeded(prev => [...prev, item])
+
+    setNotification("Issue added to Actions Needed")
+    setTimeout(() => setNotification(null), 3000)
+  }
+
   const deleteIssue = async (id: number) => {
     console.log("Deleting ID:", id)
 
@@ -226,6 +250,8 @@ export default function Dashboard() {
 
     if (!error) {
       setNotification("Issue resolved successfully")
+      // Also clear from the local Actions Needed list if it exists there
+      setActionsNeeded(prev => prev.filter(a => a.report_id !== id))
       setTimeout(() => setNotification(null), 3000)
     }
 
@@ -940,10 +966,6 @@ export default function Dashboard() {
                           {/* Details */}
                           <div className="anomaly-card-body">
                             <div className="anomaly-meta-row">
-                              <span className="machine-meta-label">Probability</span>
-                              <span style={{ fontWeight: 600, color: probColor }}>{prob.toFixed(3)}</span>
-                            </div>
-                            <div className="anomaly-meta-row">
                               <span className="machine-meta-label">Economic Impact</span>
                               <span style={{ fontWeight: 600, color: "#1e293b" }}>
                                 ₹{item.economic_impact?.toFixed(2) ?? "—"}
@@ -958,10 +980,13 @@ export default function Dashboard() {
                           <div className="anomaly-card-actions">
                             <button
                               className="anomaly-btn anomaly-btn-confirm"
-                              onClick={() => confirmIssue(item.report_id)}
-                              title="Confirm this issue"
+                              // onClick={() => confirmIssue(item.report_id)}
+                              onClick={() => confirmIssue(item)}
+                              title={isConfirmed ? "Issue is already confirmed" : "Confirm this issue"}
+                              disabled={isConfirmed}
+                              style={{ opacity: isConfirmed ? 0.6 : 1, cursor: isConfirmed ? 'not-allowed' : 'pointer' }}
                             >
-                              ✓ Confirm
+                              {isConfirmed ? "✓ Confirmed" : "✓ Confirm"}
                             </button>
                             <button
                               className="anomaly-btn anomaly-btn-delete"
@@ -1069,30 +1094,88 @@ export default function Dashboard() {
                       <tr>
                         <th>Machine ID</th>
                         <th>Warranty</th>
-                        <th>Action</th>
+                        <th>Actions Needed</th>
                       </tr>
                     </thead>
+                    {/* <tbody>
+                      {anomalies.filter(a => a.status === "confirmed").length > 0 ? (
+                        anomalies
+                          .filter(a => a.status === "confirmed")
+                          .map((item) => {
+                            const isInWarranty = (item.report_id % 2) === 0;
+
+                            return (
+                              <tr key={`action-${item.report_id}`}>
+                                <td className="machine-id-cell">{item.machine_id}</td>
+                                <td>
+                                  <span className={`status-badge ${isInWarranty ? "status-active" : "status-expired"}`}>
+                                    {isInWarranty ? "In Warranty" : "Expired"}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                      className="anomaly-btn anomaly-btn-confirm"
+                                      style={{ maxWidth: '140px', fontWeight: 600 }}
+                                      onClick={() => alert(`Repair order initiated for Machine ${item.machine_id}`)}
+                                    >
+                                      🔧 Order Repair
+                                    </button>
+                                    <button
+                                      className="anomaly-btn anomaly-btn-resolve"
+                                      style={{ maxWidth: '140px', fontWeight: 600 }}
+                                      onClick={() => resolveIssue(item.report_id)}
+                                    >
+                                      ✔ Resolved
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                      ) : (
+                        <tr>
+                          <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+                            No pending actions. Confirm a machine fault to add it here.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody> */}
                     <tbody>
-                      {activeAnomalies.length > 0 ? (
-                        activeAnomalies.map((item) => {
-                          const isInWarranty = (item.report_id % 2) === 0;
+                      {actionsNeeded.length > 0 ? (
+                        actionsNeeded.map((item) => {
+                          // Try to find machine in the real warranty data fetched from API
+                          const realMachine = warrantyData.find(m => m.machine_id === item.machine_id);
+
+                          // Use real data if found, otherwise fallback to seeded logic
+                          const statusLabel = realMachine ? realMachine.status : ((item.report_id % 2) === 0 ? "In Warranty" : "Expired");
+                          const isExpired = statusLabel === "Expired";
 
                           return (
                             <tr key={`action-${item.report_id}`}>
                               <td className="machine-id-cell">{item.machine_id}</td>
                               <td>
-                                <span className={`status-badge ${isInWarranty ? "status-active" : "status-expired"}`}>
-                                  {isInWarranty ? "In Warranty" : "Expired"}
+                                <span className={`status-badge ${isExpired ? "status-expired" : "status-active"}`}>
+                                  {statusLabel}
                                 </span>
                               </td>
                               <td>
-                                <button
-                                  className="anomaly-btn anomaly-btn-confirm"
-                                  style={{ maxWidth: '140px', fontWeight: 600 }}
-                                  onClick={() => alert(`Repair order initiated for Machine ${item.machine_id}`)}
-                                >
-                                  🔧 Order Repair
-                                </button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button
+                                    className="anomaly-btn anomaly-btn-confirm"
+                                    style={{ maxWidth: '140px', fontWeight: 600 }}
+                                    onClick={() => alert(`Repair order initiated for Machine ${item.machine_id}`)}
+                                  >
+                                    🔧 Order Repair
+                                  </button>
+                                  <button
+                                    className="anomaly-btn anomaly-btn-resolve"
+                                    style={{ maxWidth: '140px', fontWeight: 600 }}
+                                    onClick={() => resolveIssue(item.report_id)}
+                                  >
+                                    ✔ Resolved
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1100,11 +1183,12 @@ export default function Dashboard() {
                       ) : (
                         <tr>
                           <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
-                            No pending actions required.
+                            No pending actions. Confirm a machine fault to add it here.
                           </td>
                         </tr>
                       )}
                     </tbody>
+
                   </table>
                 </div>
 
