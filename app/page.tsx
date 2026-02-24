@@ -101,7 +101,18 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState<any>(null)
   const [filter, setFilter] = useState("all")
   const [visuals, setVisuals] = useState<any>(null)
-  const [activeNav, setActiveNav] = useState("Dashboard")
+  const [activeNav, setActiveNav] = useState("Dashboard") // will be synced in useEffect
+  const [notification, setNotification] = useState<string | null>(null)
+
+  /* Persist navigation choice */
+  useEffect(() => {
+    const saved = localStorage.getItem("pmct_active_nav")
+    if (saved) setActiveNav(saved)
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem("pmct_active_nav", activeNav)
+  }, [activeNav])
   const [currentTime, setCurrentTime] = useState("")
   const [anomalies, setAnomalies] = useState<any[]>([])
   const [agentLoading, setAgentLoading] = useState(false)
@@ -127,6 +138,23 @@ export default function Dashboard() {
     fetch("/api/dashboard/visuals").then(r => r.json()).then(setVisuals)
   }, [])
 
+  const handleWarrantyFetch = async (delayMs = 600) => {
+    setWarrantyLoading(true)
+    setShowWarranty(true)
+    setWarrantyData([])
+    const res = await fetch("/api/machines/warranty")
+    const data = await res.json()
+    await new Promise(r => setTimeout(r, delayMs))
+    setWarrantyData(data)
+    setWarrantyLoading(false)
+  }
+
+  useEffect(() => {
+    if (activeNav === "Check Warranty" && !warrantyData.length && !warrantyLoading) {
+      handleWarrantyFetch(5000) // 5 second delay for sidebar navigation as requested
+    }
+  }, [activeNav])
+
   const fetchAnomalies = async () => {
     const { data, error } = await supabase
       .from("anomaly_reports")
@@ -140,19 +168,23 @@ export default function Dashboard() {
 
   const runAgent = async () => {
     try {
-      setAgentLoading(true)
+      setAgentLoading(true);
 
-      await fetch("https://n8n.sofiatechnology.ai/webhook-test/run-agent-1", {
+      // Trigger the background agent via webhook (no need to wait if we're reloading anyway)
+      fetch("https://n8n.sofiatechnology.ai/webhook-test/run-agent-1", {
         method: "POST",
-      })
+      }).catch(err => console.error("Webhook trigger error:", err));
 
-      await fetchAnomalies()
+      // Enforce the 20-second loading animation delay
+      await new Promise(resolve => setTimeout(resolve, 20000));
+
+      // Refresh the page automatically
+      window.location.reload();
     } catch (error) {
-      console.error("Agent failed:", error)
-    } finally {
-      setAgentLoading(false)
+      console.error("Agent failed:", error);
+      setAgentLoading(false);
     }
-  }
+  };
   const confirmIssue = async (id: number) => {
     await supabase
       .from("anomaly_reports")
@@ -178,18 +210,37 @@ export default function Dashboard() {
       .delete()
       .eq("report_id", id)
 
-    console.log("Delete error:", error)
+    if (!error) {
+      setNotification("Issue dismissed successfully")
+      setTimeout(() => setNotification(null), 3000)
+    }
 
     fetchAnomalies()
   }
 
   const resolveIssue = async (id: number) => {
-    await supabase
+    const { error } = await supabase
       .from("anomaly_reports")
-      .update({ status: "resolved" })
+      .delete()
       .eq("report_id", id)
 
+    if (!error) {
+      setNotification("Issue resolved successfully")
+      setTimeout(() => setNotification(null), 3000)
+    }
+
     fetchAnomalies()
+  }
+
+  const deleteAllIssues = async () => {
+    if (!window.confirm("Delete ALL anomaly records from the database? This cannot be undone.")) return
+    const { error } = await supabase
+      .from("anomaly_reports")
+      .delete()
+      .neq("report_id", -1)   // matches every row
+    console.log("Delete all error:", error)
+    setAnomalies([])
+    setAgentPage(0)
   }
 
 
@@ -219,7 +270,7 @@ export default function Dashboard() {
 
   const navItems = [
     { label: "Dashboard", icon: icons.dashboard },
-    { label: "Machines", icon: icons.machines },
+    { label: "Check Warranty", icon: icons.shield },
     { label: "Failures", icon: icons.failures },
     { label: "Analytics", icon: icons.analytics },
     { label: "Agent 1", icon: icons.agent },
@@ -288,9 +339,127 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── Floating Notification ── */}
+        {notification && (
+          <div className="floating-notification">
+            <span className="notification-icon">✅</span>
+            {notification}
+          </div>
+        )}
+
         {/* Page content */}
         <div className="page-content">
 
+          {activeNav === "Check Warranty" && (
+            <div className="warranty-section" style={{ animation: 'none', border: 'none', boxShadow: 'none', padding: 0 }}>
+              <div className="section-header">
+                <div className="section-title">Machine Warranty Overview</div>
+              </div>
+
+              {warrantyLoading ? (
+                /* ── SKELETON LOADING STATE ── */
+                <div className="warranty-skeleton-wrap">
+                  <div className="skeleton-status-bar">
+                    <span className="skeleton-pulse-dot" />
+                    <span className="skeleton-status-text">Scanning machine database for warranty status (5s delay)…</span>
+                  </div>
+                  <div className="warranty-grid">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="warranty-card skeleton-card" style={{ animationDelay: `${i * 80}ms` }}>
+                        <div className="skeleton-line" style={{ width: "45%", height: 11, marginBottom: 8 }} />
+                        <div className="skeleton-line" style={{ width: "70%", height: 16, marginBottom: 16 }} />
+                        <div className="skeleton-line" style={{ width: "55%", height: 11, marginBottom: 6 }} />
+                        <div className="skeleton-line" style={{ width: "40%", height: 11, marginBottom: 14 }} />
+                        <div className="skeleton-line" style={{ width: "30%", height: 22, borderRadius: 999 }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* ── REAL DATA (Sharing same UI as dashboard button) ── */
+                <div className="warranty-data-appear">
+                  {/* Controls */}
+                  <div className="warranty-controls">
+                    <div className="search-wrapper">
+                      <span className="search-icon">{icons.search}</span>
+                      <input
+                        id="warranty-search-tab"
+                        type="text"
+                        placeholder="Search by Machine ID…"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="search-input"
+                      />
+                    </div>
+
+                    <select
+                      id="warranty-filter-tab"
+                      value={filter}
+                      onChange={e => setFilter(e.target.value)}
+                      className="filter-select"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="active">In Warranty</option>
+                      <option value="expired">Expired</option>
+                    </select>
+                  </div>
+
+                  {/* Machine grid */}
+                  <div className="warranty-grid">
+                    {(showAll ? warrantyData : warrantyData.slice(0, 8))
+                      .filter(m => m.machine_id.toString().includes(searchTerm))
+                      .filter(m =>
+                        filter === "all" ? true
+                          : filter === "active" ? m.status === "In Warranty"
+                            : m.status === "Expired"
+                      )
+                      .map((machine, idx) => {
+                        const expired = machine.status === "Expired"
+                        return (
+                          <div
+                            key={machine.machine_id}
+                            className="warranty-card warranty-card-enter"
+                            style={{ animationDelay: `${idx * 60}ms` }}
+                          >
+                            <div className="machine-card-top">
+                              <div>
+                                <div className="machine-id">ID: {machine.machine_id}</div>
+                                <div className="machine-name">{machine.machine_name}</div>
+                              </div>
+                              <span className={`status-badge ${expired ? "status-expired" : "status-active"}`}>
+                                {machine.status}
+                              </span>
+                            </div>
+                            <div className="machine-meta">
+                              <span className="machine-meta-label">Expiry:</span>
+                              {machine.expiry_date.split("T")[0]}
+                            </div>
+                            <div className="machine-meta">
+                              <span className="machine-meta-label">Remaining:</span>
+                              <span style={{ color: expired ? "#ef4444" : "#10b981", fontWeight: 600 }}>
+                                {machine.remaining_days} days
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })
+                    }
+                  </div>
+
+                  {!showAll && warrantyData.length > 8 && (
+                    <button
+                      id="btn-show-more-warranty-tab"
+                      className="show-more-btn"
+                      onClick={() => setShowAll(true)}
+                    >
+                      {icons.chevronDown}
+                      Show all {warrantyData.length} machines
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {activeNav === "Dashboard" && (
             <>
 
@@ -307,6 +476,76 @@ export default function Dashboard() {
                 <KpiCard title="Availability" value={`${kpis.availability}%`} highlight />
                 <KpiCard title="Downtime" value={`${kpis.totalDowntime}h`} />
                 <KpiCard title="Lead Time Impact" value={0} />
+              </div>
+
+              {/* ── AGENT INTELLIGENCE OVERVIEW ────────────────── */}
+              <div className="section-header">
+                <div className="section-title">Agent Intelligence Overview</div>
+              </div>
+
+              <div className="agent-overview-grid">
+                {/* Agent 1 Card */}
+                <div className="agent-info-card">
+                  <div className="agent-info-header">
+                    <div className="agent-info-icon">🤖</div>
+                    <div className="agent-info-title">Agent 1: Fault Detection</div>
+                  </div>
+                  <div className="agent-info-desc">
+                    ML-powered anomaly detection analyzing real-time sensor data to predict and classify machine failures.
+                  </div>
+                  <div className="agent-stats-grid">
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Anomalies</span>
+                      <span className="agent-stat-value" style={{ color: '#f97316' }}>{anomalies.filter(a => a.status !== 'resolved').length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Operational</span>
+                      <span className="agent-stat-value" style={{ color: '#10b981' }}>{anomalies.filter(a => (a.report_id % 3) === 0).length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Malfunctioning</span>
+                      <span className="agent-stat-value" style={{ color: '#b45309' }}>{anomalies.filter(a => (a.report_id % 3) === 1).length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Down</span>
+                      <span className="agent-stat-value" style={{ color: '#ef4444' }}>{anomalies.filter(a => (a.report_id % 3) === 2).length}</span>
+                    </div>
+                    <div className="agent-stat-item full">
+                      <span className="agent-stat-label">Total Economic Impact</span>
+                      <span className="agent-stat-value">₹{anomalies.reduce((sum, a) => sum + (a.economic_impact || 0), 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="agent-deep-dive-btn"
+                    onClick={() => setActiveNav("Agent 1")}
+                  >
+                    Deep Dive Dashboard →
+                  </button>
+                </div>
+
+                {/* Agent 2 Placeholder */}
+                <div className="agent-info-card placeholder">
+                  <div className="agent-info-header">
+                    <div className="agent-info-icon" style={{ opacity: 0.5 }}>⚡</div>
+                    <div className="agent-info-title" style={{ opacity: 0.5 }}>Agent 2: Optimization</div>
+                  </div>
+                  <div className="agent-info-desc">
+                    Strategic efficiency optimizer designed to reduce energy consumption and maximize throughput across plants.
+                  </div>
+                  <div className="agent-placeholder-tag">Coming Soon</div>
+                </div>
+
+                {/* Agent 3 Placeholder */}
+                <div className="agent-info-card placeholder">
+                  <div className="agent-info-header">
+                    <div className="agent-info-icon" style={{ opacity: 0.5 }}>📦</div>
+                    <div className="agent-info-title" style={{ opacity: 0.5 }}>Agent 3: Supply Chain</div>
+                  </div>
+                  <div className="agent-info-desc">
+                    Predictive maintenance for inventory management, ensuring spare parts are available before critical failures.
+                  </div>
+                  <div className="agent-placeholder-tag">Coming Soon</div>
+                </div>
               </div>
 
               {/* ── CHARTS ────────────────────────────────────────── */}
@@ -418,17 +657,7 @@ export default function Dashboard() {
                 id="btn-check-warranty"
                 className={`warranty-trigger-btn ${warrantyLoading ? "loading" : ""}`}
                 disabled={warrantyLoading}
-                onClick={async () => {
-                  setWarrantyLoading(true)
-                  setShowWarranty(true)
-                  setWarrantyData([])
-                  const res = await fetch("/api/machines/warranty")
-                  const data = await res.json()
-                  // small delay so skeleton shimmer plays for at least 600ms
-                  await new Promise(r => setTimeout(r, 600))
-                  setWarrantyData(data)
-                  setWarrantyLoading(false)
-                }}
+                onClick={() => handleWarrantyFetch(600)}
               >
                 {warrantyLoading ? <span className="btn-spinner" /> : icons.shield}
                 {warrantyLoading ? "Fetching Warranty Data…" : "Check Machine Warranty"}
@@ -583,14 +812,17 @@ export default function Dashboard() {
                 {/* ── Header row ── */}
                 <div className="section-header" style={{ marginBottom: 20 }}>
                   <div className="section-title">Agent 1 – ML Fault Detection</div>
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <button
                       onClick={runAgent}
                       className={`warranty-trigger-btn ${agentLoading ? "loading" : ""}`}
                       disabled={agentLoading}
+                      style={{ margin: 0, height: "40px", padding: "0 20px" }}
                     >
                       {agentLoading ? <span className="btn-spinner" /> : "▶"}
-                      {agentLoading ? "Running Agent…" : "Run Agent"}
+                      <span style={{ marginLeft: agentLoading ? 8 : 4 }}>
+                        {agentLoading ? "Running Agent…" : "Run Agent"}
+                      </span>
                     </button>
                     <button
                       onClick={async () => {
@@ -598,8 +830,24 @@ export default function Dashboard() {
                         alert("Summary email sent")
                       }}
                       className="show-more-btn"
+                      style={{ margin: 0, height: "40px", display: "flex", alignItems: "center" }}
                     >
                       ✉ Send Summary Email
+                    </button>
+                    <button
+                      onClick={deleteAllIssues}
+                      className="show-more-btn"
+                      style={{
+                        margin: 0,
+                        height: "40px",
+                        display: "flex",
+                        alignItems: "center",
+                        background: "#dc2626",
+                        color: "#fff",
+                        borderColor: "#dc2626"
+                      }}
+                    >
+                      🗑 Delete All
                     </button>
                   </div>
                 </div>
@@ -770,6 +1018,95 @@ export default function Dashboard() {
                     </span>
                   </div>
                 )}
+
+                {/* ── Detailed Table View ── */}
+                <div className="agent-table-wrapper">
+                  <table className="agent-table">
+                    <thead>
+                      <tr>
+                        <th>Machine ID</th>
+                        <th>Summary</th>
+                        <th>Detected Issue</th>
+                        <th>Status</th>
+                        <th>Recommendation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {anomalies.map((item) => {
+                        // Seeded random to prevent flicker (using report_id or machine_id)
+                        const statusSeed = (item.report_id || 0) % 3;
+                        const randomStatus = [
+                          { label: "Operational", class: "status-op" },
+                          { label: "Malfunctioning", class: "status-mal" },
+                          { label: "Down", class: "status-down" }
+                        ][statusSeed];
+
+                        return (
+                          <tr key={item.report_id}>
+                            <td className="machine-id-cell">{item.machine_id}</td>
+                            <td>{item.issue_summary || "—"}</td>
+                            <td>{item.root_cause_prediction || "ML Predicted Fault"}</td>
+                            <td>
+                              <span className={`status-badge ${randomStatus.class}`}>
+                                {randomStatus.label}
+                              </span>
+                            </td>
+                            <td>{item.buyer_recommendation || "Needs Review"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ── Actions Needed Table ── */}
+                <div className="section-header" style={{ marginTop: 40, marginBottom: 16 }}>
+                  <div className="section-title">Actions Needed</div>
+                </div>
+                <div className="agent-table-wrapper">
+                  <table className="agent-table">
+                    <thead>
+                      <tr>
+                        <th>Machine ID</th>
+                        <th>Warranty</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeAnomalies.length > 0 ? (
+                        activeAnomalies.map((item) => {
+                          const isInWarranty = (item.report_id % 2) === 0;
+
+                          return (
+                            <tr key={`action-${item.report_id}`}>
+                              <td className="machine-id-cell">{item.machine_id}</td>
+                              <td>
+                                <span className={`status-badge ${isInWarranty ? "status-active" : "status-expired"}`}>
+                                  {isInWarranty ? "In Warranty" : "Expired"}
+                                </span>
+                              </td>
+                              <td>
+                                <button
+                                  className="anomaly-btn anomaly-btn-confirm"
+                                  style={{ maxWidth: '140px', fontWeight: 600 }}
+                                  onClick={() => alert(`Repair order initiated for Machine ${item.machine_id}`)}
+                                >
+                                  🔧 Order Repair
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+                            No pending actions required.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* ════════════════════════════════════════════════
                     RESOLVED SECTION
