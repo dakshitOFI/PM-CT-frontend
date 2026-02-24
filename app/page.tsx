@@ -1,4 +1,5 @@
 "use client"
+import { supabase } from "@/lib/supabase"
 import { useEffect, useState } from "react"
 import {
   PieChart, Pie, Cell,
@@ -63,7 +64,7 @@ const kpiConfig: Record<string, { icon: string; iconBg: string; iconColor: strin
   MTTR: { icon: "🔧", iconBg: "rgba(168,85,247,0.1)", iconColor: "#a855f7" },
   Availability: { icon: "📶", iconBg: "rgba(20,184,166,0.1)", iconColor: "#14b8a6" },
   Downtime: { icon: "🕑", iconBg: "rgba(239,68,68,0.1)", iconColor: "#ef4444" },
-  "Earnings Impact": { icon: "💶", iconBg: "rgba(245,158,11,0.12)", iconColor: "#f59e0b" },
+  "Lead Time Impact": { icon: "�", iconBg: "rgba(99,102,241,0.1)", iconColor: "#6366f1" },
 }
 
 /* ── Recharts custom tooltip ────────────────────────────────── */
@@ -102,6 +103,11 @@ export default function Dashboard() {
   const [visuals, setVisuals] = useState<any>(null)
   const [activeNav, setActiveNav] = useState("Dashboard")
   const [currentTime, setCurrentTime] = useState("")
+  const [anomalies, setAnomalies] = useState<any[]>([])
+  const [agentLoading, setAgentLoading] = useState(false)
+  const [agentSearch, setAgentSearch] = useState("")
+  const [agentFilter, setAgentFilter] = useState("all")   // "all" | "confirmed" | "pending"
+  const [agentPage, setAgentPage] = useState(0)           // sliding window page index
 
   /* Live clock */
   useEffect(() => {
@@ -120,6 +126,82 @@ export default function Dashboard() {
     fetch("/api/dashboard/overview").then(r => r.json()).then(setKpis)
     fetch("/api/dashboard/visuals").then(r => r.json()).then(setVisuals)
   }, [])
+
+  const fetchAnomalies = async () => {
+    const { data, error } = await supabase
+      .from("anomaly_reports")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (!error && data) {
+      setAnomalies(data)
+    }
+  }
+
+  const runAgent = async () => {
+    try {
+      setAgentLoading(true)
+
+      await fetch("https://n8n.sofiatechnology.ai/webhook-test/run-agent-1", {
+        method: "POST",
+      })
+
+      await fetchAnomalies()
+    } catch (error) {
+      console.error("Agent failed:", error)
+    } finally {
+      setAgentLoading(false)
+    }
+  }
+  const confirmIssue = async (id: number) => {
+    await supabase
+      .from("anomaly_reports")
+      .update({ status: "confirmed" })
+      .eq("report_id", id)
+
+    fetchAnomalies()
+  }
+
+  // const deleteIssue = async (id: number) => {
+  //   await supabase
+  //     .from("anomaly_reports")
+  //     .delete()
+  //     .eq("report_id", id)
+
+  //   fetchAnomalies()
+  // }
+  const deleteIssue = async (id: number) => {
+    console.log("Deleting ID:", id)
+
+    const { error } = await supabase
+      .from("anomaly_reports")
+      .delete()
+      .eq("report_id", id)
+
+    console.log("Delete error:", error)
+
+    fetchAnomalies()
+  }
+
+  const resolveIssue = async (id: number) => {
+    await supabase
+      .from("anomaly_reports")
+      .update({ status: "resolved" })
+      .eq("report_id", id)
+
+    fetchAnomalies()
+  }
+
+
+
+  useEffect(() => {
+    if (activeNav === "Agent 1") {
+      fetchAnomalies()
+    }
+  }, [activeNav])
+
+
+
 
   /* Loading screen */
   if (!kpis) return (
@@ -209,268 +291,540 @@ export default function Dashboard() {
         {/* Page content */}
         <div className="page-content">
 
-          {/* ── KPI SECTION ───────────────────────────────────── */}
-          <div className="section-header">
-            <div className="section-title">Key Performance Indicators</div>
-          </div>
-
-          <div className="kpi-grid">
-            <KpiCard title="Machines" value={kpis.machines} />
-            <KpiCard title="Incidents" value={kpis.incidents} />
-            <KpiCard title="MTBF" value={`${kpis.mtbf}h`} />
-            <KpiCard title="MTTR" value={`${kpis.mttr}h`} />
-            <KpiCard title="Availability" value={`${kpis.availability}%`} highlight />
-            <KpiCard title="Downtime" value={`${kpis.totalDowntime}h`} />
-            <KpiCard
-              title="Earnings Impact"
-              value={`€${(kpis.earningsImpact / 1_000_000).toFixed(2)}M`}
-              highlight
-            />
-          </div>
-
-          {/* ── CHARTS ────────────────────────────────────────── */}
-          {visuals && (
+          {activeNav === "Dashboard" && (
             <>
+
+              {/* ── KPI SECTION ───────────────────────────────────── */}
               <div className="section-header">
-                <div className="section-title">Visual Analytics</div>
+                <div className="section-title">Key Performance Indicators</div>
               </div>
 
-              <div className="visual-grid">
-
-                {/* Warranty Pie */}
-                <div className="chart-card" id="chart-warranty">
-                  <h3>Warranty Status</h3>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <PieChart width={280} height={220}>
-                      <Pie
-                        data={visuals.warrantyDistribution}
-                        dataKey="value"
-                        nameKey="name"
-                        outerRadius={85}
-                        innerRadius={42}
-                        paddingAngle={3}
-                      >
-                        {visuals.warrantyDistribution.map((entry: any, index: number) => (
-                          <Cell
-                            key={index}
-                            fill={
-                              entry.name === "In Warranty" ? "#1a6bc8"
-                                : entry.name === "Expired" ? "#ef4444"
-                                  : "#f97316"
-                            }
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                    </PieChart>
-
-                    {/* Legend */}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center", marginTop: 12 }}>
-                      {visuals.warrantyDistribution.map((item: any, i: number) => {
-                        const color = item.name === "In Warranty" ? "#1a6bc8"
-                          : item.name === "Expired" ? "#ef4444"
-                            : "#f97316"
-                        return (
-                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 500 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                            <span style={{ color: "#475569" }}>{item.name}</span>
-                            <span style={{ color: "#94a3b8", fontWeight: 400 }}>({item.value})</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top Failure Machines — horizontal scrollable ranked list */}
-                <div className="chart-card" id="chart-failures">
-                  <h3>Top Failure Machines</h3>
-                  <FailureRankList data={visuals.topFailures} />
-                </div>
-
-                {/* Monthly Trend Line — full width */}
-                <div className="chart-card full-width" id="chart-monthly-trend">
-                  <h3>Monthly Failure Trend</h3>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={visuals.monthlyTrend} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis
-                        dataKey="month"
-                        tick={{ fontSize: 12, fill: "#94a3b8", fontWeight: 500 }}
-                        axisLine={false} tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 12, fill: "#94a3b8" }}
-                        axisLine={false} tickLine={false}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <defs>
-                        <linearGradient id="lineAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#1a6bc8" stopOpacity={0.15} />
-                          <stop offset="95%" stopColor="#1a6bc8" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Line
-                        type="monotone"
-                        dataKey="count"
-                        stroke="#1a6bc8"
-                        strokeWidth={2.5}
-                        dot={{ fill: "#1a6bc8", r: 4, strokeWidth: 0 }}
-                        activeDot={{ r: 6, fill: "#3b8ee8", strokeWidth: 0 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-
-              </div>
-            </>
-          )}
-
-          {/* ── WARRANTY SECTION ──────────────────────────────── */}
-          <div className="divider" />
-
-          <div className="section-header">
-            <div className="section-title">Machine Warranty</div>
-          </div>
-
-          <button
-            id="btn-check-warranty"
-            className={`warranty-trigger-btn ${warrantyLoading ? "loading" : ""}`}
-            disabled={warrantyLoading}
-            onClick={async () => {
-              setWarrantyLoading(true)
-              setShowWarranty(true)
-              setWarrantyData([])
-              const res = await fetch("/api/machines/warranty")
-              const data = await res.json()
-              // small delay so skeleton shimmer plays for at least 600ms
-              await new Promise(r => setTimeout(r, 600))
-              setWarrantyData(data)
-              setWarrantyLoading(false)
-            }}
-          >
-            {warrantyLoading ? <span className="btn-spinner" /> : icons.shield}
-            {warrantyLoading ? "Fetching Warranty Data…" : "Check Machine Warranty"}
-          </button>
-
-          {showWarranty && (
-            <div className="warranty-section">
-              <div className="warranty-header">
-                <div className="warranty-header-title">
-                  {icons.shield}
-                  Warranty Overview
-                </div>
-                {!warrantyLoading && (
-                  <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>
-                    {warrantyData.length} machines total
-                  </span>
-                )}
+              <div className="kpi-grid">
+                <KpiCard title="Machines" value={kpis.machines} />
+                <KpiCard title="Incidents" value={kpis.incidents} />
+                <KpiCard title="MTBF" value={`${kpis.mtbf}h`} />
+                <KpiCard title="MTTR" value={`${kpis.mttr}h`} />
+                <KpiCard title="Availability" value={`${kpis.availability}%`} highlight />
+                <KpiCard title="Downtime" value={`${kpis.totalDowntime}h`} />
+                <KpiCard title="Lead Time Impact" value={0} />
               </div>
 
-              {warrantyLoading ? (
-                /* ── SKELETON LOADING STATE ── */
-                <div className="warranty-skeleton-wrap">
-                  <div className="skeleton-status-bar">
-                    <span className="skeleton-pulse-dot" />
-                    <span className="skeleton-status-text">Fetching machine warranty data…</span>
-                  </div>
-                  <div className="warranty-grid">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="warranty-card skeleton-card" style={{ animationDelay: `${i * 80}ms` }}>
-                        <div className="skeleton-line" style={{ width: "45%", height: 11, marginBottom: 8 }} />
-                        <div className="skeleton-line" style={{ width: "70%", height: 16, marginBottom: 16 }} />
-                        <div className="skeleton-line" style={{ width: "55%", height: 11, marginBottom: 6 }} />
-                        <div className="skeleton-line" style={{ width: "40%", height: 11, marginBottom: 14 }} />
-                        <div className="skeleton-line" style={{ width: "30%", height: 22, borderRadius: 999 }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                /* ── REAL DATA ── */
-                <div className="warranty-data-appear">
-                  {/* Controls */}
-                  <div className="warranty-controls">
-                    <div className="search-wrapper">
-                      <span className="search-icon">{icons.search}</span>
-                      <input
-                        id="warranty-search"
-                        type="text"
-                        placeholder="Search by Machine ID…"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="search-input"
-                      />
-                    </div>
-
-                    <select
-                      id="warranty-filter"
-                      value={filter}
-                      onChange={e => setFilter(e.target.value)}
-                      className="filter-select"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="active">In Warranty</option>
-                      <option value="expired">Expired</option>
-                    </select>
+              {/* ── CHARTS ────────────────────────────────────────── */}
+              {visuals && (
+                <>
+                  <div className="section-header">
+                    <div className="section-title">Visual Analytics</div>
                   </div>
 
-                  {/* Machine grid */}
-                  <div className="warranty-grid">
-                    {(showAll ? warrantyData : warrantyData.slice(0, 6))
-                      .filter(m => m.machine_id.toString().includes(searchTerm))
-                      .filter(m =>
-                        filter === "all" ? true
-                          : filter === "active" ? m.status === "In Warranty"
-                            : m.status === "Expired"
-                      )
-                      .map((machine, idx) => {
-                        const expired = machine.status === "Expired"
-                        return (
-                          <div
-                            key={machine.machine_id}
-                            className="warranty-card warranty-card-enter"
-                            style={{ animationDelay: `${idx * 60}ms` }}
+                  <div className="visual-grid">
+
+                    {/* Warranty Pie */}
+                    <div className="chart-card" id="chart-warranty">
+                      <h3>Warranty Status</h3>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <PieChart width={280} height={220}>
+                          <Pie
+                            data={visuals.warrantyDistribution}
+                            dataKey="value"
+                            nameKey="name"
+                            outerRadius={85}
+                            innerRadius={42}
+                            paddingAngle={3}
                           >
-                            <div className="machine-card-top">
-                              <div>
-                                <div className="machine-id">ID: {machine.machine_id}</div>
-                                <div className="machine-name">{machine.machine_name}</div>
+                            {visuals.warrantyDistribution.map((entry: any, index: number) => (
+                              <Cell
+                                key={index}
+                                fill={
+                                  entry.name === "In Warranty" ? "#1a6bc8"
+                                    : entry.name === "Expired" ? "#ef4444"
+                                      : "#f97316"
+                                }
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<CustomTooltip />} />
+                        </PieChart>
+
+                        {/* Legend */}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", justifyContent: "center", marginTop: 12 }}>
+                          {visuals.warrantyDistribution.map((item: any, i: number) => {
+                            const color = item.name === "In Warranty" ? "#1a6bc8"
+                              : item.name === "Expired" ? "#ef4444"
+                                : "#f97316"
+                            return (
+                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 500 }}>
+                                <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                                <span style={{ color: "#475569" }}>{item.name}</span>
+                                <span style={{ color: "#94a3b8", fontWeight: 400 }}>({item.value})</span>
                               </div>
-                              <span className={`status-badge ${expired ? "status-expired" : "status-active"}`}>
-                                {machine.status}
-                              </span>
-                            </div>
-                            <div className="machine-meta">
-                              <span className="machine-meta-label">Expiry:</span>
-                              {machine.expiry_date.split("T")[0]}
-                            </div>
-                            <div className="machine-meta">
-                              <span className="machine-meta-label">Remaining:</span>
-                              <span style={{ color: expired ? "#ef4444" : "#10b981", fontWeight: 600 }}>
-                                {machine.remaining_days} days
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })
-                    }
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Top Failure Machines — horizontal scrollable ranked list */}
+                    <div className="chart-card" id="chart-failures">
+                      <h3>Top Failure Machines</h3>
+                      <FailureRankList data={visuals.topFailures} />
+                    </div>
+
+                    {/* Monthly Trend Line — full width */}
+                    <div className="chart-card full-width" id="chart-monthly-trend">
+                      <h3>Monthly Failure Trend</h3>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <LineChart data={visuals.monthlyTrend} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="month"
+                            tick={{ fontSize: 12, fill: "#94a3b8", fontWeight: 500 }}
+                            axisLine={false} tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: "#94a3b8" }}
+                            axisLine={false} tickLine={false}
+                          />
+                          <Tooltip content={<CustomTooltip />} />
+                          <defs>
+                            <linearGradient id="lineAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#1a6bc8" stopOpacity={0.15} />
+                              <stop offset="95%" stopColor="#1a6bc8" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Line
+                            type="monotone"
+                            dataKey="count"
+                            stroke="#1a6bc8"
+                            strokeWidth={2.5}
+                            dot={{ fill: "#1a6bc8", r: 4, strokeWidth: 0 }}
+                            activeDot={{ r: 6, fill: "#3b8ee8", strokeWidth: 0 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                  </div>
+                </>
+              )}
+
+              {/* ── WARRANTY SECTION ──────────────────────────────── */}
+              <div className="divider" />
+
+              <div className="section-header">
+                <div className="section-title">Machine Warranty</div>
+              </div>
+
+              <button
+                id="btn-check-warranty"
+                className={`warranty-trigger-btn ${warrantyLoading ? "loading" : ""}`}
+                disabled={warrantyLoading}
+                onClick={async () => {
+                  setWarrantyLoading(true)
+                  setShowWarranty(true)
+                  setWarrantyData([])
+                  const res = await fetch("/api/machines/warranty")
+                  const data = await res.json()
+                  // small delay so skeleton shimmer plays for at least 600ms
+                  await new Promise(r => setTimeout(r, 600))
+                  setWarrantyData(data)
+                  setWarrantyLoading(false)
+                }}
+              >
+                {warrantyLoading ? <span className="btn-spinner" /> : icons.shield}
+                {warrantyLoading ? "Fetching Warranty Data…" : "Check Machine Warranty"}
+              </button>
+
+              {showWarranty && (
+                <div className="warranty-section">
+                  <div className="warranty-header">
+                    <div className="warranty-header-title">
+                      {icons.shield}
+                      Warranty Overview
+                    </div>
+                    {!warrantyLoading && (
+                      <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>
+                        {warrantyData.length} machines total
+                      </span>
+                    )}
                   </div>
 
-                  {!showAll && warrantyData.length > 6 && (
-                    <button
-                      id="btn-show-more-warranty"
-                      className="show-more-btn"
-                      onClick={() => setShowAll(true)}
-                    >
-                      {icons.chevronDown}
-                      Show all {warrantyData.length} machines
-                    </button>
+                  {warrantyLoading ? (
+                    /* ── SKELETON LOADING STATE ── */
+                    <div className="warranty-skeleton-wrap">
+                      <div className="skeleton-status-bar">
+                        <span className="skeleton-pulse-dot" />
+                        <span className="skeleton-status-text">Fetching machine warranty data…</span>
+                      </div>
+                      <div className="warranty-grid">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <div key={i} className="warranty-card skeleton-card" style={{ animationDelay: `${i * 80}ms` }}>
+                            <div className="skeleton-line" style={{ width: "45%", height: 11, marginBottom: 8 }} />
+                            <div className="skeleton-line" style={{ width: "70%", height: 16, marginBottom: 16 }} />
+                            <div className="skeleton-line" style={{ width: "55%", height: 11, marginBottom: 6 }} />
+                            <div className="skeleton-line" style={{ width: "40%", height: 11, marginBottom: 14 }} />
+                            <div className="skeleton-line" style={{ width: "30%", height: 22, borderRadius: 999 }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── REAL DATA ── */
+                    <div className="warranty-data-appear">
+                      {/* Controls */}
+                      <div className="warranty-controls">
+                        <div className="search-wrapper">
+                          <span className="search-icon">{icons.search}</span>
+                          <input
+                            id="warranty-search"
+                            type="text"
+                            placeholder="Search by Machine ID…"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="search-input"
+                          />
+                        </div>
+
+                        <select
+                          id="warranty-filter"
+                          value={filter}
+                          onChange={e => setFilter(e.target.value)}
+                          className="filter-select"
+                        >
+                          <option value="all">All Status</option>
+                          <option value="active">In Warranty</option>
+                          <option value="expired">Expired</option>
+                        </select>
+                      </div>
+
+                      {/* Machine grid */}
+                      <div className="warranty-grid">
+                        {(showAll ? warrantyData : warrantyData.slice(0, 6))
+                          .filter(m => m.machine_id.toString().includes(searchTerm))
+                          .filter(m =>
+                            filter === "all" ? true
+                              : filter === "active" ? m.status === "In Warranty"
+                                : m.status === "Expired"
+                          )
+                          .map((machine, idx) => {
+                            const expired = machine.status === "Expired"
+                            return (
+                              <div
+                                key={machine.machine_id}
+                                className="warranty-card warranty-card-enter"
+                                style={{ animationDelay: `${idx * 60}ms` }}
+                              >
+                                <div className="machine-card-top">
+                                  <div>
+                                    <div className="machine-id">ID: {machine.machine_id}</div>
+                                    <div className="machine-name">{machine.machine_name}</div>
+                                  </div>
+                                  <span className={`status-badge ${expired ? "status-expired" : "status-active"}`}>
+                                    {machine.status}
+                                  </span>
+                                </div>
+                                <div className="machine-meta">
+                                  <span className="machine-meta-label">Expiry:</span>
+                                  {machine.expiry_date.split("T")[0]}
+                                </div>
+                                <div className="machine-meta">
+                                  <span className="machine-meta-label">Remaining:</span>
+                                  <span style={{ color: expired ? "#ef4444" : "#10b981", fontWeight: 600 }}>
+                                    {machine.remaining_days} days
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })
+                        }
+                      </div>
+
+                      {!showAll && warrantyData.length > 6 && (
+                        <button
+                          id="btn-show-more-warranty"
+                          className="show-more-btn"
+                          onClick={() => setShowAll(true)}
+                        >
+                          {icons.chevronDown}
+                          Show all {warrantyData.length} machines
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
-            </div>
+
+
+
+            </>
           )}
+
+          {activeNav === "Agent 1" && (() => {
+            const PAGE_SIZE = 6
+
+            // Split into active (non-resolved) and resolved
+            const activeAnomalies = anomalies.filter(a => a.status !== "resolved")
+            const resolvedAnomalies = anomalies.filter(a => a.status === "resolved")
+
+            // Apply search + filter on active list
+            const filtered = activeAnomalies
+              .filter(a => a.machine_id.toString().includes(agentSearch.trim()))
+              .filter(a =>
+                agentFilter === "all" ? true
+                  : agentFilter === "confirmed" ? a.status === "confirmed"
+                    : a.status !== "confirmed"    // "pending"
+              )
+
+            const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+            const pageItems = filtered.slice(agentPage * PAGE_SIZE, (agentPage + 1) * PAGE_SIZE)
+
+            return (
+              <div className="agent-section">
+
+                {/* ── Header row ── */}
+                <div className="section-header" style={{ marginBottom: 20 }}>
+                  <div className="section-title">Agent 1 – ML Fault Detection</div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      onClick={runAgent}
+                      className={`warranty-trigger-btn ${agentLoading ? "loading" : ""}`}
+                      disabled={agentLoading}
+                    >
+                      {agentLoading ? <span className="btn-spinner" /> : "▶"}
+                      {agentLoading ? "Running Agent…" : "Run Agent"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await fetch("https://YOUR-N8N-URL/webhook/send-summary", { method: "POST" })
+                        alert("Summary email sent")
+                      }}
+                      className="show-more-btn"
+                    >
+                      ✉ Send Summary Email
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Search + Filter ── */}
+                <div className="warranty-controls" style={{ marginBottom: 20 }}>
+                  <div className="search-wrapper">
+                    <span className="search-icon">{icons.search}</span>
+                    <input
+                      id="agent-search"
+                      type="text"
+                      placeholder="Search by Machine ID…"
+                      value={agentSearch}
+                      onChange={e => { setAgentSearch(e.target.value); setAgentPage(0) }}
+                      className="search-input"
+                    />
+                  </div>
+                  <select
+                    id="agent-filter"
+                    value={agentFilter}
+                    onChange={e => { setAgentFilter(e.target.value); setAgentPage(0) }}
+                    className="filter-select"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+
+                {/* ── Anomaly count banner ── */}
+                {activeAnomalies.length > 0 && (
+                  <div className="skeleton-status-bar" style={{ marginBottom: 20 }}>
+                    <span className="skeleton-pulse-dot" style={{ background: "#f97316" }} />
+                    <span className="skeleton-status-text" style={{ color: "#c2410c" }}>
+                      {activeAnomalies.length} active anomaly{activeAnomalies.length !== 1 ? "s" : ""} detected
+                    </span>
+                    {filtered.length !== activeAnomalies.length && (
+                      <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
+                        Showing {filtered.length} filtered
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Empty state ── */}
+                {activeAnomalies.length === 0 && !agentLoading && (
+                  <div className="agent-empty">
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+                    <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>No active anomalies</div>
+                    <div style={{ fontSize: 13, color: "#94a3b8" }}>Run the agent to detect ML-predicted faults.</div>
+                  </div>
+                )}
+
+                {/* ── 3-column Card Grid ── */}
+                {pageItems.length > 0 && (
+                  <div className="agent-grid">
+                    {pageItems.map((item, idx) => {
+                      const isConfirmed = item.status === "confirmed"
+                      const prob = Number(item.predicted_probability)
+                      const probColor = prob >= 0.8 ? "#ef4444" : prob >= 0.5 ? "#f97316" : "#10b981"
+
+                      return (
+                        <div
+                          key={item.report_id}
+                          className="anomaly-card warranty-card-enter"
+                          style={{ animationDelay: `${idx * 60}ms` }}
+                        >
+                          {/* Card header */}
+                          <div className="anomaly-card-header">
+                            <div>
+                              <div className="machine-id">Machine ID: {item.machine_id}</div>
+                              <div
+                                className="status-badge"
+                                style={{
+                                  marginTop: 4,
+                                  background: isConfirmed ? "rgba(16,185,129,0.1)" : "rgba(249,115,22,0.1)",
+                                  color: isConfirmed ? "#059669" : "#c2410c",
+                                  border: `1px solid ${isConfirmed ? "rgba(16,185,129,0.25)" : "rgba(249,115,22,0.25)"}`,
+                                }}
+                              >
+                                {isConfirmed ? "Confirmed" : "Pending"}
+                              </div>
+                            </div>
+                            {/* Probability ring */}
+                            <div className="prob-badge" style={{ borderColor: probColor, color: probColor }}>
+                              {Math.round(prob * 100)}%
+                            </div>
+                          </div>
+
+                          {/* Details */}
+                          <div className="anomaly-card-body">
+                            <div className="anomaly-meta-row">
+                              <span className="machine-meta-label">Probability</span>
+                              <span style={{ fontWeight: 600, color: probColor }}>{prob.toFixed(3)}</span>
+                            </div>
+                            <div className="anomaly-meta-row">
+                              <span className="machine-meta-label">Economic Impact</span>
+                              <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                                ₹{item.economic_impact?.toFixed(2) ?? "—"}
+                              </span>
+                            </div>
+                            {item.issue_summary && (
+                              <div className="anomaly-summary">{item.issue_summary}</div>
+                            )}
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="anomaly-card-actions">
+                            <button
+                              className="anomaly-btn anomaly-btn-confirm"
+                              onClick={() => confirmIssue(item.report_id)}
+                              title="Confirm this issue"
+                            >
+                              ✓ Confirm
+                            </button>
+                            <button
+                              className="anomaly-btn anomaly-btn-delete"
+                              onClick={() => deleteIssue(item.report_id)}
+                              title="Dismiss — not an issue"
+                            >
+                              ✕ Dismiss
+                            </button>
+                            <button
+                              className="anomaly-btn anomaly-btn-resolve"
+                              onClick={() => resolveIssue(item.report_id)}
+                              title="Mark as resolved"
+                            >
+                              ✔ Resolved
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* ── Pagination (sliding window) ── */}
+                {totalPages > 1 && (
+                  <div className="agent-pagination">
+                    <button
+                      className="page-btn"
+                      disabled={agentPage === 0}
+                      onClick={() => setAgentPage(p => p - 1)}
+                    >
+                      ← Prev
+                    </button>
+
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        className={`page-btn ${i === agentPage ? "page-btn-active" : ""}`}
+                        onClick={() => setAgentPage(i)}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+
+                    <button
+                      className="page-btn"
+                      disabled={agentPage >= totalPages - 1}
+                      onClick={() => setAgentPage(p => p + 1)}
+                    >
+                      Next →
+                    </button>
+
+                    <span className="page-info">
+                      {agentPage * PAGE_SIZE + 1}–{Math.min((agentPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                    </span>
+                  </div>
+                )}
+
+                {/* ════════════════════════════════════════════════
+                    RESOLVED SECTION
+                    ════════════════════════════════════════════════ */}
+                {resolvedAnomalies.length > 0 && (
+                  <div className="resolved-section">
+                    <div className="resolved-header">
+                      <span className="resolved-title">✔ Resolved</span>
+                      <span className="resolved-count">{resolvedAnomalies.length} machine{resolvedAnomalies.length !== 1 ? "s" : ""}</span>
+                    </div>
+
+                    <div className="agent-grid">
+                      {resolvedAnomalies.map((item, idx) => (
+                        <div
+                          key={item.report_id}
+                          className="anomaly-card anomaly-card-resolved warranty-card-enter"
+                          style={{ animationDelay: `${idx * 50}ms` }}
+                        >
+                          <div className="anomaly-card-header">
+                            <div>
+                              <div className="machine-id">Machine ID: {item.machine_id}</div>
+                              <div className="status-badge status-active" style={{ marginTop: 4 }}>
+                                Resolved
+                              </div>
+                            </div>
+                            <div className="prob-badge" style={{ borderColor: "#10b981", color: "#10b981" }}>
+                              {Math.round(Number(item.predicted_probability) * 100)}%
+                            </div>
+                          </div>
+                          <div className="anomaly-card-body">
+                            <div className="anomaly-meta-row">
+                              <span className="machine-meta-label">Economic Impact</span>
+                              <span style={{ fontWeight: 600 }}>₹{item.economic_impact?.toFixed(2) ?? "—"}</span>
+                            </div>
+                            {item.issue_summary && (
+                              <div className="anomaly-summary">{item.issue_summary}</div>
+                            )}
+                          </div>
+                          <div className="anomaly-card-actions">
+                            <button
+                              className="anomaly-btn anomaly-btn-delete"
+                              onClick={() => deleteIssue(item.report_id)}
+                            >
+                              ✕ Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )
+          })()}
 
         </div>{/* end page-content */}
       </main>
