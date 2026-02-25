@@ -106,6 +106,25 @@ export default function Dashboard() {
   const [actionsNeeded, setActionsNeeded] = useState<any[]>([])
   const [selectedQRCode, setSelectedQRCode] = useState<any>(null)
 
+  // Derived Mailto Link for QR Code
+  const subject = selectedQRCode ? `Please check the machine with ID: ${selectedQRCode.id}` : ""
+  const body = selectedQRCode ? `
+Hello,
+
+Here are the details for machine ${selectedQRCode.id}:
+
+• Status: ${selectedQRCode.status}
+• Detected Issue: ${selectedQRCode.issue}
+• Summary: ${selectedQRCode.summary}
+• Recommendation: ${selectedQRCode.recommendation}
+
+Please investigate as soon as possible.
+
+Sent from PMCT Control Tower
+  `.trim() : ""
+
+  const mailtoLink = selectedQRCode ? `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` : ""
+
 
   /* Persist navigation choice */
   useEffect(() => {
@@ -1276,21 +1295,10 @@ export default function Dashboard() {
 
             <div className="qr-image-wrap">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                  JSON.stringify({
-                    machine_id: selectedQRCode.id,
-                    generated_at: new Date().toISOString(),
-                    details: {
-                      summary: selectedQRCode.summary,
-                      issue: selectedQRCode.issue,
-                      status: selectedQRCode.status,
-                      recommendation: selectedQRCode.recommendation
-                    }
-                  })
-                )}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
                 alt="QR Code"
-                width={250}
-                height={250}
+                width={220}
+                height={220}
               />
             </div>
 
@@ -1307,6 +1315,19 @@ export default function Dashboard() {
                 <span className="qr-detail-label">Summary</span>
                 <span className="qr-detail-value">{selectedQRCode.summary}</span>
               </div>
+              <a
+                href={mailtoLink}
+                className="agent-deep-dive-btn"
+                style={{
+                  display: "block",
+                  textAlign: "center",
+                  marginTop: 16,
+                  textDecoration: "none",
+                  width: "100%"
+                }}
+              >
+                Click Me to Send Email
+              </a>
             </div>
           </div>
         </div>
