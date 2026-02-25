@@ -1168,50 +1168,6 @@ Sent from PMCT Control Tower
                         <th>Actions Needed</th>
                       </tr>
                     </thead>
-                    {/* <tbody>
-                      {anomalies.filter(a => a.status === "confirmed").length > 0 ? (
-                        anomalies
-                          .filter(a => a.status === "confirmed")
-                          .map((item) => {
-                            const isInWarranty = (item.report_id % 2) === 0;
-
-                            return (
-                              <tr key={`action-${item.report_id}`}>
-                                <td className="machine-id-cell">{item.machine_id}</td>
-                                <td>
-                                  <span className={`status-badge ${isInWarranty ? "status-active" : "status-expired"}`}>
-                                    {isInWarranty ? "In Warranty" : "Expired"}
-                                  </span>
-                                </td>
-                                <td>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button
-                                      className="anomaly-btn anomaly-btn-confirm"
-                                      style={{ maxWidth: '140px', fontWeight: 600 }}
-                                      onClick={() => alert(`Repair order initiated for Machine ${item.machine_id}`)}
-                                    >
-                                      🔧 Order Repair
-                                    </button>
-                                    <button
-                                      className="anomaly-btn anomaly-btn-resolve"
-                                      style={{ maxWidth: '140px', fontWeight: 600 }}
-                                      onClick={() => resolveIssue(item.report_id)}
-                                    >
-                                      ✔ Resolved
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })
-                      ) : (
-                        <tr>
-                          <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
-                            No pending actions. Confirm a machine fault to add it here.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody> */}
                     <tbody>
                       {actionsNeeded.length > 0 ? (
                         actionsNeeded.map((item) => {
@@ -1232,13 +1188,23 @@ Sent from PMCT Control Tower
                               </td>
                               <td>
                                 <div style={{ display: 'flex', gap: '8px' }}>
-                                  <button
-                                    className="anomaly-btn anomaly-btn-confirm"
-                                    style={{ maxWidth: '140px', fontWeight: 600 }}
-                                    onClick={() => alert(`Repair order initiated for Machine ${item.machine_id}`)}
-                                  >
-                                    🔧 Order Repair
-                                  </button>
+                                  {isExpired ? (
+                                    <button
+                                      className="anomaly-btn anomaly-btn-rfp"
+                                      style={{ maxWidth: '140px', fontWeight: 600 }}
+                                      onClick={() => alert(`RFP process initiated for Machine ${item.machine_id}`)}
+                                    >
+                                      📄 Issue an RFP
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="anomaly-btn anomaly-btn-confirm"
+                                      style={{ maxWidth: '140px', fontWeight: 600 }}
+                                      onClick={() => alert(`Repair order initiated for Machine ${item.machine_id}`)}
+                                    >
+                                      🔧 Order Repair
+                                    </button>
+                                  )}
                                   <button
                                     className="anomaly-btn anomaly-btn-resolve"
                                     style={{ maxWidth: '140px', fontWeight: 600 }}

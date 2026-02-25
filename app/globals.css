@@ -1210,6 +1210,18 @@ body {
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
+.anomaly-btn-rfp {
+  background: var(--blue-600);
+  color: white;
+  border-color: var(--blue-700);
+}
+
+.anomaly-btn-rfp:hover {
+  background: var(--blue-700);
+  color: white;
+  box-shadow: 0 4px 12px rgba(19, 84, 165, 0.3);
+}
+
 .anomaly-btn-delete {
   background: rgba(239, 68, 68, 0.08);
   color: #dc2626;
