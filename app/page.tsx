@@ -106,7 +106,23 @@ export default function Dashboard() {
   const [actionsNeeded, setActionsNeeded] = useState<any[]>([])
   const [selectedQRCode, setSelectedQRCode] = useState<any>(null)
 
-  // Derived Mailto Link for QR Code
+  /* Persist navigation choice */
+  useEffect(() => {
+    const saved = localStorage.getItem("pmct_active_nav")
+    if (saved) setActiveNav(saved)
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem("pmct_active_nav", activeNav)
+  }, [activeNav])
+  const [currentTime, setCurrentTime] = useState("")
+  const [anomalies, setAnomalies] = useState<any[]>([])
+  const [agentLoading, setAgentLoading] = useState(false)
+  const [agentSearch, setAgentSearch] = useState("")
+  const [agentFilter, setAgentFilter] = useState("all")   // "all" | "confirmed" | "pending"
+  const [agentPage, setAgentPage] = useState(0)           // sliding window page index
+
+  // Derived Mailto Link for QR Code (Single Machine)
   const subject = selectedQRCode ? `Please check the machine with ID: ${selectedQRCode.id}` : ""
   const body = selectedQRCode ? `
 Hello,
@@ -125,22 +141,27 @@ Sent from PMCT Control Tower
 
   const mailtoLink = selectedQRCode ? `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` : ""
 
+  // Derived Mailto Link for All Anomalies Summary
+  const summarySubject = `Plant Machine Health Summary - ${new Date().toLocaleDateString()}`
+  const summaryBody = anomalies.length > 0 ? `
+Full Machine Status Summary Report
+Generated: ${new Date().toLocaleString()}
 
-  /* Persist navigation choice */
-  useEffect(() => {
-    const saved = localStorage.getItem("pmct_active_nav")
-    if (saved) setActiveNav(saved)
-  }, [])
+${anomalies.map(item => {
+    const statusSeed = (item.report_id || 0) % 3;
+    const statusLabel = ["Operational", "Malfunctioning", "Down"][statusSeed];
+    return `• Machine ID: ${item.machine_id}
+  Status: ${statusLabel}
+  Issue: ${item.root_cause_prediction || "ML Predicted Fault"}
+  Summary: ${item.issue_summary || "—"}
+  Recommendation: ${item.buyer_recommendation || "Needs Review"}
+  -----------------------------------`;
+  }).join("\n\n")}
 
-  useEffect(() => {
-    localStorage.setItem("pmct_active_nav", activeNav)
-  }, [activeNav])
-  const [currentTime, setCurrentTime] = useState("")
-  const [anomalies, setAnomalies] = useState<any[]>([])
-  const [agentLoading, setAgentLoading] = useState(false)
-  const [agentSearch, setAgentSearch] = useState("")
-  const [agentFilter, setAgentFilter] = useState("all")   // "all" | "confirmed" | "pending"
-  const [agentPage, setAgentPage] = useState(0)           // sliding window page index
+Sent from PMCT Control Tower
+  `.trim() : "No active anomalies to report."
+
+  const allAnomaliesMailto = `mailto:?subject=${encodeURIComponent(summarySubject)}&body=${encodeURIComponent(summaryBody)}`
 
   /* Live clock */
   useEffect(() => {
@@ -870,16 +891,19 @@ Sent from PMCT Control Tower
                         {agentLoading ? "Running Agent…" : "Run Agent"}
                       </span>
                     </button>
-                    <button
-                      onClick={async () => {
-                        await fetch("https://YOUR-N8N-URL/webhook/send-summary", { method: "POST" })
-                        alert("Summary email sent")
+                    <a
+                      href={allAnomaliesMailto}
+                      className="show-more-btn btn-summary-email"
+                      style={{
+                        margin: 0,
+                        height: "40px",
+                        display: "flex",
+                        alignItems: "center",
+                        textDecoration: "none"
                       }}
-                      className="show-more-btn"
-                      style={{ margin: 0, height: "40px", display: "flex", alignItems: "center" }}
                     >
                       ✉ Send Summary Email
-                    </button>
+                    </a>
                     <button
                       onClick={deleteAllIssues}
                       className="show-more-btn"
