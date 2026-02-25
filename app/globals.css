@@ -203,6 +203,11 @@ body {
   color: var(--white);
 }
 
+.logout-nav-item:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+}
+
 .nav-item.active {
   background: linear-gradient(135deg, var(--blue-600) 0%, var(--blue-500) 100%);
   color: var(--white);

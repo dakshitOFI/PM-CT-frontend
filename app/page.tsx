@@ -54,6 +54,11 @@ const icons = {
       <polyline points="6 9 12 15 18 9" />
     </svg>
   ),
+  logout: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  ),
 }
 
 /* ── KPI icon + color config ────────────────────────────────── */
@@ -324,10 +329,6 @@ Sent from PMCT Control Tower
   /* Loading screen */
   if (!kpis) return (
     <div className="loading-screen">
-      {/* Uniper Logo Mark */}
-      <div className="loading-logo">
-        <UniperLogoMark size={64} />
-      </div>
       <div className="loading-bar">
         <div className="loading-bar-fill" />
       </div>
@@ -351,12 +352,9 @@ Sent from PMCT Control Tower
 
         {/* Brand */}
         <div className="sidebar-brand">
-          <div className="sidebar-logo">
-            <UniperLogoMark size={36} />
-          </div>
           <div className="sidebar-brand-text">
-            <div className="sidebar-brand-name">Uniper</div>
-            <div className="sidebar-brand-sub">PMCT Control Tower</div>
+            <div className="sidebar-brand-name">PMCT</div>
+            <div className="sidebar-brand-sub">Control Tower</div>
           </div>
         </div>
 
@@ -378,10 +376,24 @@ Sent from PMCT Control Tower
 
         {/* Footer */}
         <div className="sidebar-footer">
+          <div
+            className="nav-item logout-nav-item"
+            style={{ marginBottom: '12px', color: '#fca5a5' }}
+            onClick={() => {
+              if (window.confirm("Are you sure you want to logout?")) {
+                alert("Logging out...");
+                // Add your real logout logic here
+              }
+            }}
+          >
+            <span className="nav-icon">{icons.logout}</span>
+            Logout
+          </div>
+
           <div className="sidebar-user">
-            <div className="user-avatar">UN</div>
+            <div className="user-avatar">AD</div>
             <div className="user-info">
-              <div className="user-name">Uniper User</div>
+              <div className="user-name">Admin User</div>
               <div className="user-role">Plant Engineer</div>
             </div>
           </div>
@@ -1495,27 +1507,3 @@ function FailureRankList({ data }: { data: { machine_id: string; count: number }
   )
 }
 
-/* ── Uniper SVG Logo Mark ───────────────────────────────────── */
-function UniperLogoMark({ size = 36 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Flame / energy mark */}
-      <circle cx="24" cy="24" r="24" fill="#0a2d5e" />
-      <path
-        d="M24 8C24 8 16 18 16 25C16 29.4183 19.5817 33 24 33C28.4183 33 32 29.4183 32 25C32 18 24 8 24 8Z"
-        fill="url(#flameGrad)"
-      />
-      <path
-        d="M24 22C24 22 20 26.5 20 28.5C20 30.433 21.8 32 24 32C26.2 32 28 30.433 28 28.5C28 26.5 24 22 24 22Z"
-        fill="white"
-        opacity="0.9"
-      />
-      <defs>
-        <linearGradient id="flameGrad" x1="24" y1="8" x2="24" y2="33" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#38bdf8" />
-          <stop offset="100%" stopColor="#1a6bc8" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
