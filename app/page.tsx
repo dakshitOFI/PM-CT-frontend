@@ -221,7 +221,7 @@ Sent from PMCT Control Tower
       setAgentLoading(true);
 
       // Trigger the background agent via webhook (no need to wait if we're reloading anyway)
-      fetch("https://n8n.sofiatechnology.ai/webhook-test/run-agent-1", {
+      fetch("https://n8n.sofiatechnology.ai/webhook/run-agent-1", {
         method: "POST",
       }).catch(err => console.error("Webhook trigger error:", err));
 
