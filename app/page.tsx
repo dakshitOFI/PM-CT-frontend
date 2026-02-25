@@ -104,6 +104,7 @@ export default function Dashboard() {
   const [activeNav, setActiveNav] = useState("Dashboard") // will be synced in useEffect
   const [notification, setNotification] = useState<string | null>(null)
   const [actionsNeeded, setActionsNeeded] = useState<any[]>([])
+  const [selectedQRCode, setSelectedQRCode] = useState<any>(null)
 
 
   /* Persist navigation choice */
@@ -1054,6 +1055,7 @@ export default function Dashboard() {
                         <th>Detected Issue</th>
                         <th>Status</th>
                         <th>Recommendation</th>
+                        <th>QR-CODE</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1077,6 +1079,20 @@ export default function Dashboard() {
                               </span>
                             </td>
                             <td>{item.buyer_recommendation || "Needs Review"}</td>
+                            <td>
+                              <button
+                                className="scan-me-btn"
+                                onClick={() => setSelectedQRCode({
+                                  id: item.machine_id,
+                                  summary: item.issue_summary || "—",
+                                  issue: item.root_cause_prediction || "ML Predicted Fault",
+                                  status: randomStatus.label,
+                                  recommendation: item.buyer_recommendation || "Needs Review"
+                                })}
+                              >
+                                scan me
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -1249,6 +1265,52 @@ export default function Dashboard() {
 
         </div>{/* end page-content */}
       </main>
+
+      {/* ── QR CODE MODAL ────────────────────────────────────── */}
+      {selectedQRCode && (
+        <div className="qr-modal-overlay" onClick={() => setSelectedQRCode(null)}>
+          <div className="qr-modal" onClick={e => e.stopPropagation()}>
+            <button className="qr-modal-close" onClick={() => setSelectedQRCode(null)}>✕</button>
+            <div className="qr-title">Machine Identity QR</div>
+            <div className="qr-subtitle">Scan to view machine health details on mobile</div>
+
+            <div className="qr-image-wrap">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                  JSON.stringify({
+                    machine_id: selectedQRCode.id,
+                    generated_at: new Date().toISOString(),
+                    details: {
+                      summary: selectedQRCode.summary,
+                      issue: selectedQRCode.issue,
+                      status: selectedQRCode.status,
+                      recommendation: selectedQRCode.recommendation
+                    }
+                  })
+                )}`}
+                alt="QR Code"
+                width={250}
+                height={250}
+              />
+            </div>
+
+            <div className="qr-details-summary">
+              <div className="qr-detail-row">
+                <span className="qr-detail-label">Machine ID</span>
+                <span className="qr-detail-value">{selectedQRCode.id}</span>
+              </div>
+              <div className="qr-detail-row">
+                <span className="qr-detail-label">Status</span>
+                <span className="qr-detail-value">{selectedQRCode.status}</span>
+              </div>
+              <div className="qr-detail-row">
+                <span className="qr-detail-label">Summary</span>
+                <span className="qr-detail-value">{selectedQRCode.summary}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

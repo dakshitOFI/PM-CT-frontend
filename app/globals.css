@@ -1582,3 +1582,121 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── QR MODAL ──────────────────────────────────────────────── */
+.qr-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(3, 9, 15, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s var(--ease);
+}
+
+.qr-modal {
+  background: var(--white);
+  padding: 40px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+  animation: scaleIn 0.3s var(--ease);
+}
+
+.qr-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--grey-50);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--grey-400);
+  transition: all 0.2s;
+}
+
+.qr-modal-close:hover {
+  background: var(--grey-100);
+  color: var(--grey-900);
+}
+
+.qr-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--blue-900);
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+
+.qr-subtitle {
+  font-size: 14px;
+  color: var(--grey-400);
+  margin-bottom: 24px;
+}
+
+.qr-image-wrap {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--grey-100);
+  border-radius: var(--radius-lg);
+  display: inline-block;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+}
+
+.qr-details-summary {
+  text-align: left;
+  background: var(--grey-50);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--grey-100);
+}
+
+.qr-detail-row {
+  display: flex;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.qr-detail-label {
+  font-weight: 700;
+  color: var(--blue-600);
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.qr-detail-value {
+  color: var(--grey-800);
+}
+
+.scan-me-btn {
+  background: none;
+  border: none;
+  color: var(--blue-500);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+}
+
+.scan-me-btn:hover {
+  color: var(--blue-700);
+  background: var(--blue-50);
+}
