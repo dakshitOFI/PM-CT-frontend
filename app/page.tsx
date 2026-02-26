@@ -64,6 +64,11 @@ const icons = {
       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </svg>
   ),
+  technical: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  ),
 }
 
 /* ── KPI icon + color config ────────────────────────────────── */
@@ -141,6 +146,19 @@ export default function Dashboard() {
   const [agentFilter, setAgentFilter] = useState("all")   // "all" | "confirmed" | "pending"
   const [agentPage, setAgentPage] = useState(0)           // sliding window page index
   const [warrantyPage, setWarrantyPage] = useState(0)
+
+  // Agent 3 States
+  const [lowStockData, setLowStockData] = useState<any[]>([])
+  const [warrantyClaimData, setWarrantyClaimData] = useState<any[]>([])
+  const [reorderSoonData, setReorderSoonData] = useState<any[]>([])
+  const [sufficientStockData, setSufficientStockData] = useState<any[]>([])
+
+  // Technical View States
+  const [techMachines, setTechMachines] = useState<any[]>([])
+  const [techFailures, setTechFailures] = useState<any[]>([])
+  const [techSearch, setTechSearch] = useState("")
+  const [techTab, setTechTab] = useState<"machines" | "failures" | "inventory">("machines")
+  const [techLoading, setTechLoading] = useState(false)
 
   // Derived Mailto Link for QR Code (Single Machine)
   const subject = selectedQRCode ? `Please check the machine with ID: ${selectedQRCode.id}` : ""
@@ -316,6 +334,18 @@ Sent from PMCT Control Tower
         { name: "75-100%", value: 0 },
       ])
     }
+  }
+
+  const fetchAgent3Data = async () => {
+    const { data: low } = await supabase.from("low_stock").select("*")
+    const { data: warranty } = await supabase.from("warranty_claim").select("*")
+    const { data: reorder } = await supabase.from("reorder_soon").select("*")
+    const { data: sufficient } = await supabase.from("sufficient_stock").select("*")
+
+    setLowStockData(low || [])
+    setWarrantyClaimData(warranty || [])
+    setReorderSoonData(reorder || [])
+    setSufficientStockData(sufficient || [])
   }
 
   const downloadRfpFile = (item: any) => {
@@ -518,12 +548,48 @@ PMCT Lifecycle Intelligence Tower
 
 
   useEffect(() => {
-    if (activeNav === "ML Fault Detection") {
+    if (activeNav === "Machinery Performance") {
       fetchAnomalies()
     }
 
-    if (activeNav === "Lifecycle Intelligence") {
+    if (activeNav === "Asset Maintenance") {
       fetchAgent2Data()
+    }
+
+    if (activeNav === "Spare-Parts Checker") {
+      fetchAgent3Data()
+    }
+
+    if (activeNav === "Technical View") {
+      const fetchTechData = async () => {
+        setTechLoading(true)
+        try {
+          // Fetch machines with full specs
+          const { data: machines } = await supabase
+            .from("machines")
+            .select("*")
+          setTechMachines(machines || [])
+
+          // Fetch failure history
+          const { data: failures } = await supabase
+            .from("failure_history")
+            .select("*")
+            .order("failure_date", { ascending: false })
+          setTechFailures(failures || [])
+
+          // Also fetch agent data if not already loaded
+          if (!lowStockData.length && !reorderSoonData.length) {
+            fetchAgent3Data()
+          }
+          if (!healthyMachines.length && !maintenanceData.length && !rfpData.length) {
+            fetchAgent2Data()
+          }
+        } catch (err) {
+          console.error("Technical View fetch error:", err)
+        }
+        setTechLoading(false)
+      }
+      fetchTechData()
     }
   }, [activeNav])
 
@@ -543,8 +609,10 @@ PMCT Lifecycle Intelligence Tower
   const navItems = [
     { label: "Dashboard", icon: icons.dashboard },
     { label: "Check Warranty", icon: icons.shield },
-    { label: "ML Fault Detection", icon: icons.agent },
-    { label: "Lifecycle Intelligence", icon: icons.bolt },
+    { label: "Technical View", icon: icons.technical },
+    { label: "Machinery Performance", icon: icons.agent },
+    { label: "Asset Maintenance", icon: icons.bolt },
+    { label: "Spare-Parts Checker", icon: icons.bolt },
   ]
 
   return (
@@ -800,7 +868,6 @@ PMCT Lifecycle Intelligence Tower
                 <KpiCard title="MTTR" value={`${kpis.mttr}h`} />
                 <KpiCard title="Availability" value={`${kpis.availability}%`} highlight />
                 <KpiCard title="Downtime" value={`${kpis.totalDowntime}h`} />
-                <KpiCard title="Lead Time Impact" value={0} />
               </div>
 
               {/* ── AGENT INTELLIGENCE OVERVIEW ────────────────── */}
@@ -809,11 +876,10 @@ PMCT Lifecycle Intelligence Tower
               </div>
 
               <div className="agent-overview-grid">
-                {/* Agent 1 Card */}
                 <div className="agent-info-card">
                   <div className="agent-info-header">
                     <div className="agent-info-icon">🤖</div>
-                    <div className="agent-info-title">ML Fault Detection</div>
+                    <div className="agent-info-title">Machinery Performance</div>
                   </div>
                   <div className="agent-info-desc">
                     ML-powered anomaly detection analyzing real-time sensor data to predict and classify machine failures.
@@ -842,17 +908,16 @@ PMCT Lifecycle Intelligence Tower
                   </div>
                   <button
                     className="agent-deep-dive-btn"
-                    onClick={() => setActiveNav("ML Fault Detection")}
+                    onClick={() => setActiveNav("Machinery Performance")}
                   >
                     Deep Dive Dashboard →
                   </button>
                 </div>
 
-                {/* Agent 2 Card */}
                 <div className="agent-info-card">
                   <div className="agent-info-header">
                     <div className="agent-info-icon">⚡</div>
-                    <div className="agent-info-title">Lifecycle Intelligence</div>
+                    <div className="agent-info-title">Asset Maintenance</div>
                   </div>
                   <div className="agent-info-desc">
                     Strategic efficiency optimizer designed to reduce energy consumption and maximize throughput across plants.
@@ -881,22 +946,48 @@ PMCT Lifecycle Intelligence Tower
                   </div>
                   <button
                     className="agent-deep-dive-btn"
-                    onClick={() => setActiveNav("Lifecycle Intelligence")}
+                    onClick={() => setActiveNav("Asset Maintenance")}
                   >
                     Deep Dive Dashboard →
                   </button>
                 </div>
 
-                {/* Agent 3 Placeholder */}
-                <div className="agent-info-card placeholder">
+                <div className="agent-info-card">
                   <div className="agent-info-header">
-                    <div className="agent-info-icon" style={{ opacity: 0.5 }}>📦</div>
-                    <div className="agent-info-title" style={{ opacity: 0.5 }}>Agent 3: Supply Chain</div>
+                    <div className="agent-info-icon">📦</div>
+                    <div className="agent-info-title">Spare-Parts Checker</div>
                   </div>
                   <div className="agent-info-desc">
                     Predictive maintenance for inventory management, ensuring spare parts are available before critical failures.
                   </div>
-                  <div className="agent-placeholder-tag">Coming Soon</div>
+                  <div className="agent-stats-grid">
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Critical Stock</span>
+                      <span className="agent-stat-value" style={{ color: '#ef4444' }}>{lowStockData.length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Reorder</span>
+                      <span className="agent-stat-value" style={{ color: '#f97316' }}>{reorderSoonData.length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Claims</span>
+                      <span className="agent-stat-value" style={{ color: '#a855f7' }}>{warrantyClaimData.length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Sufficient</span>
+                      <span className="agent-stat-value" style={{ color: '#10b981' }}>{sufficientStockData.length}</span>
+                    </div>
+                    <div className="agent-stat-item full">
+                      <span className="agent-stat-label">Inventory at Risk</span>
+                      <span className="agent-stat-value">₹{[...lowStockData, ...reorderSoonData, ...sufficientStockData].reduce((sum, item) => sum + (Number(item.part_cost) || 0), 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="agent-deep-dive-btn"
+                    onClick={() => setActiveNav("Spare-Parts Checker")}
+                  >
+                    Deep Dive Dashboard →
+                  </button>
                 </div>
               </div>
 
@@ -1182,7 +1273,7 @@ PMCT Lifecycle Intelligence Tower
             </>
           )}
 
-          {activeNav === "ML Fault Detection" && (() => {
+          {activeNav === "Machinery Performance" && (() => {
             const PAGE_SIZE = 6
 
             // Split into active (non-resolved) and resolved
@@ -1206,7 +1297,7 @@ PMCT Lifecycle Intelligence Tower
 
                 {/* ── Header row ── */}
                 <div className="section-header" style={{ marginBottom: 20 }}>
-                  <div className="section-title">ML Fault Detection</div>
+                  <div className="section-title">Machinery Performance</div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <button
                       onClick={runAgent}
@@ -1600,11 +1691,11 @@ PMCT Lifecycle Intelligence Tower
             )
           })()}
 
-          {activeNav === "Lifecycle Intelligence" && (
+          {activeNav === "Asset Maintenance" && (
             <div className="agent-section">
 
               <div className="section-header" style={{ marginBottom: 20 }}>
-                <div className="section-title">Lifecycle Intelligence</div>
+                <div className="section-title">Asset Maintenance</div>
 
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <button
@@ -1698,28 +1789,28 @@ PMCT Lifecycle Intelligence Tower
                   <div className="agent-overview-grid" style={{ marginBottom: 30 }}>
 
                     <div className="agent-info-card">
-                      <div className="agent-info-title">Total Assets</div>
+                      <div className="agent-info-title">Asset Count</div>
                       <div className="agent-stat-value" style={{ color: "#3b8ee8" }}>
                         {depreciationStats.totalAssets}
                       </div>
                     </div>
 
                     <div className="agent-info-card">
-                      <div className="agent-info-title">Total Purchase Value</div>
+                      <div className="agent-info-title">Total Asset Value</div>
                       <div className="agent-stat-value">
                         ₹{depreciationStats.totalPurchaseValue.toLocaleString()}
                       </div>
                     </div>
 
                     <div className="agent-info-card">
-                      <div className="agent-info-title">Avg Depreciation</div>
+                      <div className="agent-info-title">Average Depreciation Rate</div>
                       <div className="agent-stat-value" style={{ color: "#f97316" }}>
                         {depreciationStats.avgDepPercent}%
                       </div>
                     </div>
 
                     <div className="agent-info-card">
-                      <div className="agent-info-title">Assets &gt; 80% Depreciated</div>
+                      <div className="agent-info-title">Assets &gt; 80% Depreciation</div>
                       <div className="agent-stat-value" style={{ color: "#ef4444" }}>
                         {depreciationStats.highDepCount}
                       </div>
@@ -1747,7 +1838,7 @@ PMCT Lifecycle Intelligence Tower
               {/* RFP GENERATED TABLE */}
               {/* ───────────────────────────────────────────── */}
               <div className="section-header" style={{ marginBottom: 12 }}>
-                <div className="section-title">Replacement Candidates (RFP Generated)</div>
+                <div className="section-title">Replacement Candidates</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   {rfpSearch && (
                     <span style={{ fontSize: 12, color: "var(--grey-400)", fontWeight: 600 }}>
@@ -1777,8 +1868,8 @@ PMCT Lifecycle Intelligence Tower
                       <th>Depreciation %</th>
                       <th>Purchase Cost</th>
                       <th>Priority</th>
-                      <th>RFP File</th>
-                      <th>Send RFP</th>
+                      <th>RFP/PO File</th>
+                      <th>TAKE ACTION</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1873,6 +1964,7 @@ PMCT Lifecycle Intelligence Tower
                       <th>Machine ID</th>
                       <th>Remaining Life</th>
                       <th>Scheduled Date</th>
+                      <th>Priority</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1888,11 +1980,33 @@ PMCT Lifecycle Intelligence Tower
                                 ? item.scheduled_date.split("T")[0]
                                 : "—"}
                             </td>
+                            <td>
+                              <span
+                                className="status-badge"
+                                style={{
+                                  background: item.priority?.toLowerCase().includes("critical") ? "rgba(239, 68, 68, 0.1)" :
+                                    item.priority?.toLowerCase().includes("high") ? "rgba(249, 115, 22, 0.1)" :
+                                      item.priority?.toLowerCase().includes("medium") ? "rgba(59, 130, 246, 0.1)" :
+                                        "rgba(16, 185, 129, 0.1)",
+                                  color: item.priority?.toLowerCase().includes("critical") ? "#ef4444" :
+                                    item.priority?.toLowerCase().includes("high") ? "#f97316" :
+                                      item.priority?.toLowerCase().includes("medium") ? "#3b82f6" :
+                                        "#10b981",
+                                  border: `1px solid ${item.priority?.toLowerCase().includes("critical") ? "rgba(239, 68, 68, 0.2)" :
+                                    item.priority?.toLowerCase().includes("high") ? "rgba(249, 115, 22, 0.2)" :
+                                      item.priority?.toLowerCase().includes("medium") ? "rgba(59, 130, 246, 0.2)" :
+                                        "rgba(16, 185, 129, 0.2)"
+                                    }`
+                                }}
+                              >
+                                {item.priority || "Normal"}
+                              </span>
+                            </td>
                           </tr>
                         ))
                     ) : (
                       <tr>
-                        <td colSpan={3} style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
+                        <td colSpan={4} style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
                           <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
                           {maintenanceSearch ? `No results found for "${maintenanceSearch}"` : "No maintenance scheduled."}
                         </td>
@@ -1962,6 +2076,421 @@ PMCT Lifecycle Intelligence Tower
                 </table>
               </div>
 
+            </div>
+          )}
+
+          {activeNav === "Spare-Parts Checker" && (() => {
+
+            const totalParts =
+              lowStockData.length +
+              warrantyClaimData.length +
+              reorderSoonData.length +
+              sufficientStockData.length
+
+            const criticalCount = lowStockData.length
+
+            const reorderCount = reorderSoonData.length
+
+            const warrantyCount = warrantyClaimData.length
+
+            const totalInventoryValue = [
+              ...lowStockData,
+              ...reorderSoonData,
+              ...sufficientStockData
+            ].reduce((sum, item) => sum + (Number(item.part_cost) || 0), 0)
+
+            return (
+              <div className="agent-section">
+
+                <div className="section-header">
+                  <div className="section-title">Spare-Parts Checker</div>
+                </div>
+
+                {/* ── SUPPLY CHAIN KPIs ───────────────────────── */}
+                <div className="agent-overview-grid" style={{ marginTop: 20, marginBottom: 30 }}>
+
+                  <div className="agent-info-card warranty-card-enter">
+                    <div className="agent-info-title">Total Parts Monitored</div>
+                    <div className="agent-stat-value" style={{ color: "#3b8ee8" }}>
+                      {totalParts}
+                    </div>
+                  </div>
+
+                  <div className="agent-info-card warranty-card-enter">
+                    <div className="agent-info-title">Critical Low Stock</div>
+                    <div className="agent-stat-value" style={{ color: "#ef4444" }}>
+                      {criticalCount}
+                    </div>
+                  </div>
+
+                  <div className="agent-info-card warranty-card-enter">
+                    <div className="agent-info-title">Near Obsoletion</div>
+                    <div className="agent-stat-value" style={{ color: "#f97316" }}>
+                      {reorderCount}
+                    </div>
+                  </div>
+
+                  <div className="agent-info-card warranty-card-enter">
+                    <div className="agent-info-title">Warranty Claim Candidates</div>
+                    <div className="agent-stat-value" style={{ color: "#a855f7" }}>
+                      {warrantyCount}
+                    </div>
+                  </div>
+
+                  <div className="agent-info-card warranty-card-enter">
+                    <div className="agent-info-title">Inventory Value at Risk</div>
+                    <div className="agent-stat-value">
+                      ₹{totalInventoryValue.toLocaleString()}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* LOW STOCK TABLE */}
+                <SectionTable
+                  title="Low Stock (Critical)"
+                  data={lowStockData}
+                  excludeKeys={['part_name', 'stock_gap', 'risk_score', 'processed_at']}
+                  renderActions={(item) => {
+                    const subject = `[URGENT] Alert: Critical Low Stock for Machine ${item.machine_id}`
+                    const body = `Hello Procurement Team,\n\nAutomated Alert: A critical low stock condition has been detected.\n\nDetails:\n- Machine ID: ${item.machine_id || 'N/A'}\n- Part ID: ${item.part_id || 'N/A'}\n- Current Stock: ${item.current_stock || '0'}\n- Minimum Required: ${item.minimum_required || '0'}\n\nPlease take immediate action to restock this part.\n\nRegards,\nPMCT Dashboard`
+                    const mailto = `mailto:procurement@example.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+                    return (
+                      <a
+                        href={mailto}
+                        className="stock-alert-btn"
+                      >
+                        <span style={{ fontSize: 14 }}>✉</span>
+                        <span>Send Alert</span>
+                      </a>
+                    )
+                  }}
+                />
+
+                {/* WARRANTY CLAIM TABLE */}
+                <SectionTable
+                  title="Warranty Claim Candidates"
+                  data={warrantyClaimData}
+                  excludeKeys={['part_name', 'fail_count', 'risk_score', 'processed_at']}
+                  renderActions={(item) => {
+                    const subject = `Claiming the warranty for Machine: ${item.machine_id} - Part ID: ${item.part_id}`
+                    const body = `Dear Warranty Support Team,\n\nWe are writing to officially initiate a warranty claim for the following component:\n\nMachine Details:\n- Machine ID: ${item.machine_id || 'N/A'}\n- Part ID: ${item.part_id || 'N/A'}\n- Failure Description: [Automated Detection of Anomalous Behavior]\n\nAccording to our PMCT Control Tower logs, this part has failed or is showing critical signs of premature failure despite being within the valid warranty period.\n\nPlease provide instructions for the next steps, including any required RMA documentation or site inspection schedules.\n\nBest regards,\nPMCT Maintenance Tower`
+                    const mailto = `mailto:warranty-claims@ofi-benelux.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+                    return (
+                      <a
+                        href={mailto}
+                        className="warranty-claim-btn"
+                      >
+                        <span className="warranty-claim-icon">🛡️</span>
+                        <span className="warranty-claim-label">Claim Warranty</span>
+                      </a>
+                    )
+                  }}
+                />
+
+                {/* NEAR OBSOLETION TABLE */}
+                <SectionTable
+                  title="Near Obsoletion"
+                  data={reorderSoonData}
+                  excludeKeys={['part_name', 'risk_score', 'processed_at']}
+                />
+
+                {/* SUFFICIENT STOCK TABLE */}
+                <SectionTable
+                  title="Sufficient Stock"
+                  data={sufficientStockData}
+                  excludeKeys={['part_name', 'risk_score', 'processed_at']}
+                />
+
+              </div>
+            )
+          })()}
+
+          {/* ═══════ TECHNICAL VIEW ═══════ */}
+          {activeNav === "Technical View" && (
+            <div className="technical-view-section">
+              <div className="section-header">
+                <div className="section-title">Technical View — Machine Intelligence Console</div>
+              </div>
+
+              {techLoading ? (
+                <div className="warranty-skeleton-wrap">
+                  <div className="skeleton-status-bar">
+                    <span className="skeleton-pulse-dot" />
+                    <span className="skeleton-status-text">Loading technical data from all agents…</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginTop: 24 }}>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <div key={i} className="agent-info-card skeleton-card" style={{ animationDelay: `${i * 80}ms`, padding: 24 }}>
+                        <div className="skeleton-line" style={{ width: "55%", height: 12, marginBottom: 10 }} />
+                        <div className="skeleton-line" style={{ width: "35%", height: 22, marginBottom: 0 }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* ── Quick Stats Row ── */}
+                  <div className="tech-stats-row">
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(59,142,232,0.12)' }}>⚙️</div>
+                      <div><div className="tech-stat-label">Total Machines</div><div className="tech-stat-value">{techMachines.length}</div></div>
+                    </div>
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(239,68,68,0.12)' }}>⚠️</div>
+                      <div><div className="tech-stat-label">Failures Logged</div><div className="tech-stat-value" style={{ color: '#ef4444' }}>{techFailures.length}</div></div>
+                    </div>
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(249,115,22,0.12)' }}>🔧</div>
+                      <div><div className="tech-stat-label">Under Maintenance</div><div className="tech-stat-value" style={{ color: '#f97316' }}>{maintenanceData.length}</div></div>
+                    </div>
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(16,185,129,0.12)' }}>✅</div>
+                      <div><div className="tech-stat-label">Healthy Assets</div><div className="tech-stat-value" style={{ color: '#10b981' }}>{healthyMachines.length}</div></div>
+                    </div>
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(168,85,247,0.12)' }}>📦</div>
+                      <div><div className="tech-stat-label">Low Stock Parts</div><div className="tech-stat-value" style={{ color: '#a855f7' }}>{lowStockData.length}</div></div>
+                    </div>
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(236,72,153,0.12)' }}>📋</div>
+                      <div><div className="tech-stat-label">RFP Generated</div><div className="tech-stat-value" style={{ color: '#ec4899' }}>{rfpData.length}</div></div>
+                    </div>
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(20,184,166,0.12)' }}>💰</div>
+                      <div>
+                        <div className="tech-stat-label">Total Downtime</div>
+                        <div className="tech-stat-value" style={{ color: '#14b8a6' }}>
+                          {techFailures.reduce((sum, f) => sum + (f.downtime_hours || 0), 0).toFixed(1)}h
+                        </div>
+                      </div>
+                    </div>
+                    <div className="tech-stat-card">
+                      <div className="tech-stat-icon" style={{ background: 'rgba(99,102,241,0.12)' }}>💸</div>
+                      <div>
+                        <div className="tech-stat-label">Total Loss</div>
+                        <div className="tech-stat-value" style={{ color: '#6366f1' }}>
+                          ₹{techFailures.reduce((sum, f) => sum + (f.total_loss || 0), 0).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Tab Switcher ── */}
+                  <div className="tech-tab-bar">
+                    {(["machines", "failures", "inventory"] as const).map(tab => (
+                      <button
+                        key={tab}
+                        className={`tech-tab-btn ${techTab === tab ? 'active' : ''}`}
+                        onClick={() => { setTechTab(tab); setTechSearch("") }}
+                      >
+                        {tab === "machines" && "🖥️ Machine Registry"}
+                        {tab === "failures" && "🔴 Failure History"}
+                        {tab === "inventory" && "📦 Parts Inventory"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── Search Bar ── */}
+                  <div className="tech-search-row">
+                    <div className="search-wrapper" style={{ width: 360 }}>
+                      <span className="search-icon">{icons.search}</span>
+                      <input
+                        type="text"
+                        placeholder={`Search ${techTab}…`}
+                        value={techSearch}
+                        onChange={e => setTechSearch(e.target.value)}
+                        className="search-input"
+                      />
+                    </div>
+                    {techSearch && (
+                      <span style={{ fontSize: 12, color: 'var(--grey-400)', fontWeight: 600 }}>
+                        Filtering results…
+                      </span>
+                    )}
+                  </div>
+
+                  {/* ── Machine Registry Tab ── */}
+                  {techTab === "machines" && (() => {
+                    const filtered = techMachines.filter(m =>
+                      Object.values(m).some(v => String(v).toLowerCase().includes(techSearch.toLowerCase()))
+                    )
+                    const machineHeaders = techMachines.length > 0
+                      ? Object.keys(techMachines[0]).filter(k => !['id', 'created_at', 'updated_at'].includes(k))
+                      : []
+
+                    return (
+                      <div className="agent-table-wrapper">
+                        <table className="agent-table">
+                          <thead>
+                            <tr>
+                              {machineHeaders.map(h => (
+                                <th key={h}>{h.replace(/_/g, ' ').toUpperCase()}</th>
+                              ))}
+                              <th>WARRANTY</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.length > 0 ? filtered.map((m, idx) => {
+                              // Compute warranty inline
+                              const installDate = m.install_date ? new Date(m.install_date) : null
+                              let warrantyStatus = "—"
+                              let warrantyColor = "var(--grey-400)"
+                              if (installDate && m.expected_life_years) {
+                                const expiry = new Date(installDate)
+                                expiry.setFullYear(expiry.getFullYear() + m.expected_life_years)
+                                const diffDays = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                                if (diffDays < 0) { warrantyStatus = "Expired"; warrantyColor = "#ef4444" }
+                                else if (diffDays < 180) { warrantyStatus = "Expiring Soon"; warrantyColor = "#f97316" }
+                                else { warrantyStatus = "Active"; warrantyColor = "#10b981" }
+                              }
+                              return (
+                                <tr key={m.machine_id || idx}>
+                                  {machineHeaders.map(h => (
+                                    <td key={h}>{m[h]?.toString() || "—"}</td>
+                                  ))}
+                                  <td>
+                                    <span style={{
+                                      padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                                      background: warrantyColor + '18', color: warrantyColor, letterSpacing: 0.5
+                                    }}>
+                                      {warrantyStatus}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            }) : (
+                              <tr>
+                                <td colSpan={machineHeaders.length + 1} style={{ textAlign: 'center', padding: 40, color: 'var(--grey-400)' }}>
+                                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                                  {techSearch ? `No machines match "${techSearch}".` : 'No machine data available.'}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
+
+                  {/* ── Failure History Tab ── */}
+                  {techTab === "failures" && (() => {
+                    const filtered = techFailures.filter(f =>
+                      Object.values(f).some(v => String(v).toLowerCase().includes(techSearch.toLowerCase()))
+                    )
+                    const failHeaders = techFailures.length > 0
+                      ? Object.keys(techFailures[0]).filter(k => !['id', 'created_at', 'updated_at', 'failure_id'].includes(k))
+                      : []
+
+                    return (
+                      <div className="agent-table-wrapper">
+                        <table className="agent-table">
+                          <thead>
+                            <tr>
+                              {failHeaders.map(h => (
+                                <th key={h}>{h.replace(/_/g, ' ').toUpperCase()}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.length > 0 ? filtered.map((f, idx) => (
+                              <tr key={f.failure_id || idx}>
+                                {failHeaders.map(h => {
+                                  let val = f[h]?.toString() || "—"
+                                  // Highlight certain columns
+                                  if (h === 'downtime_hours' && Number(f[h]) > 10) {
+                                    return <td key={h} style={{ color: '#ef4444', fontWeight: 700 }}>{val}</td>
+                                  }
+                                  if (h === 'total_loss') {
+                                    return <td key={h} style={{ color: '#f97316', fontWeight: 600 }}>₹{Number(f[h] || 0).toLocaleString()}</td>
+                                  }
+                                  if (h === 'failure_date') {
+                                    return <td key={h}>{val.split('T')[0]}</td>
+                                  }
+                                  return <td key={h}>{val}</td>
+                                })}
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td colSpan={failHeaders.length} style={{ textAlign: 'center', padding: 40, color: 'var(--grey-400)' }}>
+                                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                                  {techSearch ? `No failures match "${techSearch}".` : 'No failure history available.'}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
+
+                  {/* ── Parts Inventory Tab ── */}
+                  {techTab === "inventory" && (() => {
+                    const allParts = [
+                      ...lowStockData.map(p => ({ ...p, _category: 'Critical' })),
+                      ...reorderSoonData.map(p => ({ ...p, _category: 'Reorder' })),
+                      ...sufficientStockData.map(p => ({ ...p, _category: 'Sufficient' })),
+                    ]
+                    const filtered = allParts.filter(p =>
+                      Object.values(p).some(v => String(v).toLowerCase().includes(techSearch.toLowerCase()))
+                    )
+                    const partHeaders = allParts.length > 0
+                      ? ['_category', ...Object.keys(allParts[0]).filter(k => !['id', 'created_at', 'updated_at', '_category', 'part_name', 'risk_score', 'processed_at'].includes(k))]
+                      : []
+
+                    const categoryColor: Record<string, string> = {
+                      Critical: '#ef4444',
+                      Reorder: '#f97316',
+                      Sufficient: '#10b981',
+                    }
+
+                    return (
+                      <div className="agent-table-wrapper">
+                        <table className="agent-table">
+                          <thead>
+                            <tr>
+                              {partHeaders.map(h => (
+                                <th key={h}>{(h === '_category' ? 'STATUS' : h.replace(/_/g, ' ')).toUpperCase()}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.length > 0 ? filtered.map((p, idx) => (
+                              <tr key={p.part_id || idx}>
+                                {partHeaders.map(h => {
+                                  if (h === '_category') {
+                                    return (
+                                      <td key={h}>
+                                        <span style={{
+                                          padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                                          background: (categoryColor[p._category] || '#94a3b8') + '18',
+                                          color: categoryColor[p._category] || '#94a3b8', letterSpacing: 0.5
+                                        }}>
+                                          {p._category}
+                                        </span>
+                                      </td>
+                                    )
+                                  }
+                                  return <td key={h}>{p[h]?.toString() || "—"}</td>
+                                })}
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td colSpan={partHeaders.length} style={{ textAlign: 'center', padding: 40, color: 'var(--grey-400)' }}>
+                                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                                  {techSearch ? `No parts match "${techSearch}".` : 'No inventory data available.'}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
+                </>
+              )}
             </div>
           )}
 
@@ -2150,6 +2679,103 @@ function FailureRankList({ data }: { data: { machine_id: string; count: number }
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function SectionTable({ title, data, excludeKeys = [], renderActions }: { title: string; data: any[]; excludeKeys?: string[]; renderActions?: (item: any) => React.ReactNode }) {
+  const [search, setSearch] = useState("");
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="section-table-box">
+        <div className="section-header" style={{ marginTop: 40, marginBottom: 12 }}>
+          <div className="section-title">{title}</div>
+        </div>
+        <div className="agent-table-wrapper">
+          <table className="agent-table">
+            <tbody>
+              <tr>
+                <td style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>📦</div>
+                  No data available for {title}.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  // Get table headers from object keys (excluding technical fields)
+  const headers = Object.keys(data[0]).filter(k =>
+    !['id', 'created_at', 'updated_at', ...excludeKeys.map(ek => ek.toLowerCase())].includes(k.toLowerCase())
+  )
+
+  const filtered = data.filter(item =>
+    Object.values(item).some(val =>
+      String(val).toLowerCase().includes(search.toLowerCase())
+    )
+  );
+
+  return (
+    <div className="section-table-box">
+      <div className="section-header" style={{ marginTop: 40, marginBottom: 12 }}>
+        <div className="section-title">{title}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {search && (
+            <span style={{ fontSize: 12, color: "var(--grey-400)", fontWeight: 600 }}>
+              {filtered.length} results
+            </span>
+          )}
+          <div className="search-wrapper" style={{ width: 280 }}>
+            <span className="search-icon">{icons.search}</span>
+            <input
+              type="text"
+              placeholder="Search in table…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="search-input"
+            />
+          </div>
+        </div>
+      </div>
+      <div className="agent-table-wrapper">
+        <table className="agent-table">
+          <thead>
+            <tr>
+              {headers.map(h => (
+                <th key={h}>{h.replace(/_/g, ' ').toUpperCase()}</th>
+              ))}
+              {renderActions && <th>TAKE ACTION</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length > 0 ? (
+              filtered.map((item, idx) => (
+                <tr key={item.id || idx}>
+                  {headers.map(h => (
+                    <td key={h}>{item[h]?.toString() || "—"}</td>
+                  ))}
+                  {renderActions && (
+                    <td>
+                      {renderActions(item)}
+                    </td>
+                  )}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={headers.length + (renderActions ? 1 : 0)} style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                  No results found for "{search}".
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
