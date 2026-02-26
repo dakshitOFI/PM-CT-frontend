@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "PMCT Dashboard — Uniper Control Tower",
   description:
     "Predictive Maintenance Control Tower for Uniper — real-time machine health, KPIs, warranty tracking, and failure analytics.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

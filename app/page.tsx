@@ -153,7 +153,7 @@ export default function Dashboard() {
   const [reorderSoonData, setReorderSoonData] = useState<any[]>([])
   const [sufficientStockData, setSufficientStockData] = useState<any[]>([])
 
-  // Technical View States
+  // Technician View States
   const [techMachines, setTechMachines] = useState<any[]>([])
   const [techFailures, setTechFailures] = useState<any[]>([])
   const [techSearch, setTechSearch] = useState("")
@@ -560,7 +560,7 @@ PMCT Lifecycle Intelligence Tower
       fetchAgent3Data()
     }
 
-    if (activeNav === "Technical View") {
+    if (activeNav === "Technician View") {
       fetchAnomalies()
       const fetchTechData = async () => {
         setTechLoading(true)
@@ -586,7 +586,7 @@ PMCT Lifecycle Intelligence Tower
             fetchAgent2Data()
           }
         } catch (err) {
-          console.error("Technical View fetch error:", err)
+          console.error("Technician View fetch error:", err)
         }
         setTechLoading(false)
       }
@@ -610,7 +610,7 @@ PMCT Lifecycle Intelligence Tower
   const navItems = [
     { label: "Dashboard", icon: icons.dashboard },
     { label: "Check Warranty", icon: icons.shield },
-    { label: "Technical View", icon: icons.technical },
+    { label: "Technician View", icon: icons.technical },
     { label: "Machinery Performance", icon: icons.agent },
     { label: "Asset Maintenance", icon: icons.bolt },
     { label: "Spare-Parts Checker", icon: icons.bolt },
@@ -636,7 +636,7 @@ PMCT Lifecycle Intelligence Tower
           {navItems.map(item => (
             <div
               key={item.label}
-              className={`nav-item ${activeNav === item.label ? "active" : ""} ${item.label === "Technical View" ? "nav-technical" : ""}`}
+              className={`nav-item ${activeNav === item.label ? "active" : ""} ${item.label === "Technician View" ? "nav-technical" : ""}`}
               onClick={() => setActiveNav(item.label)}
               id={`nav-${item.label.toLowerCase().replace(" ", "-")}`}
             >
@@ -2024,7 +2024,22 @@ PMCT Lifecycle Intelligence Tower
                 <SectionTable
                   title="Near Obsoletion"
                   data={reorderSoonData}
-                  excludeKeys={['part_name', 'risk_score', 'processed_at']}
+                  excludeKeys={['part_name', 'risk_score', 'processed_at', 'rfp_file_name', 'rfp_text']}
+                  renderActions={(item) => {
+                    const subject = `[ACTION REQUIRED] Near Obsoletion Alert — Part ${item.part_id} on Machine ${item.machine_id}`
+                    const body = `Dear Procurement / Maintenance Team,\n\nOur PMCT Control Tower has flagged the following part as approaching obsoletion and requiring immediate attention.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPART DETAILS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n- Machine ID: ${item.machine_id || 'N/A'}\n- Part ID: ${item.part_id || 'N/A'}\n- Current Stock: ${item.current_stock ?? 'N/A'}\n- Min Threshold: ${item.min_threshold ?? 'N/A'}\n- Lead Time (days): ${item.lead_time_days ?? 'N/A'}\n- Part Cost: ${item.part_cost ?? 'N/A'}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nRFP / RECOMMENDATION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${item.rfp_text || 'No RFP text available.'}\n\nPlease review and initiate the procurement or replacement process at the earliest.\n\nBest regards,\nPMCT Control Tower`
+                    const mailto = `mailto:procurement@ofi-benelux.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+                    return (
+                      <a
+                        href={mailto}
+                        className="stock-alert-btn"
+                      >
+                        <span style={{ fontSize: 14 }}>✉</span>
+                        <span>Send Alert</span>
+                      </a>
+                    )
+                  }}
                 />
 
                 {/* SUFFICIENT STOCK TABLE */}
@@ -2039,10 +2054,10 @@ PMCT Lifecycle Intelligence Tower
           })()}
 
           {/* ═══════ TECHNICAL VIEW ═══════ */}
-          {activeNav === "Technical View" && (
+          {activeNav === "Technician View" && (
             <div className="technical-view-section">
               <div className="section-header">
-                <div className="section-title">Technical View — Machine Intelligence Console</div>
+                <div className="section-title">Technician View — Machine Intelligence Console</div>
               </div>
 
               {techLoading ? (
@@ -2079,32 +2094,6 @@ PMCT Lifecycle Intelligence Tower
                     <div className="tech-stat-card">
                       <div className="tech-stat-icon" style={{ background: 'rgba(16,185,129,0.12)' }}>✅</div>
                       <div><div className="tech-stat-label">Healthy Assets</div><div className="tech-stat-value" style={{ color: '#10b981' }}>{healthyMachines.length}</div></div>
-                    </div>
-                    <div className="tech-stat-card">
-                      <div className="tech-stat-icon" style={{ background: 'rgba(168,85,247,0.12)' }}>📦</div>
-                      <div><div className="tech-stat-label">Low Stock Parts</div><div className="tech-stat-value" style={{ color: '#a855f7' }}>{lowStockData.length}</div></div>
-                    </div>
-                    <div className="tech-stat-card">
-                      <div className="tech-stat-icon" style={{ background: 'rgba(236,72,153,0.12)' }}>📋</div>
-                      <div><div className="tech-stat-label">RFP Generated</div><div className="tech-stat-value" style={{ color: '#ec4899' }}>{rfpData.length}</div></div>
-                    </div>
-                    <div className="tech-stat-card">
-                      <div className="tech-stat-icon" style={{ background: 'rgba(20,184,166,0.12)' }}>💰</div>
-                      <div>
-                        <div className="tech-stat-label">Total Downtime</div>
-                        <div className="tech-stat-value" style={{ color: '#14b8a6' }}>
-                          {techFailures.reduce((sum, f) => sum + (f.downtime_hours || 0), 0).toFixed(1)}h
-                        </div>
-                      </div>
-                    </div>
-                    <div className="tech-stat-card">
-                      <div className="tech-stat-icon" style={{ background: 'rgba(99,102,241,0.12)' }}>💸</div>
-                      <div>
-                        <div className="tech-stat-label">Total Loss</div>
-                        <div className="tech-stat-value" style={{ color: '#6366f1' }}>
-                          ₹{techFailures.reduce((sum, f) => sum + (f.total_loss || 0), 0).toLocaleString()}
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -2518,56 +2507,58 @@ PMCT Lifecycle Intelligence Tower
           )}
 
         </div>{/* end page-content */}
-      </main>
+      </main >
 
       {/* ── QR CODE MODAL ────────────────────────────────────── */}
-      {selectedQRCode && (
-        <div className="qr-modal-overlay" onClick={() => setSelectedQRCode(null)}>
-          <div className="qr-modal" onClick={e => e.stopPropagation()}>
-            <button className="qr-modal-close" onClick={() => setSelectedQRCode(null)}>✕</button>
-            <div className="qr-title">Machine Identity QR</div>
-            <div className="qr-subtitle">Scan to view machine health details on mobile</div>
+      {
+        selectedQRCode && (
+          <div className="qr-modal-overlay" onClick={() => setSelectedQRCode(null)}>
+            <div className="qr-modal" onClick={e => e.stopPropagation()}>
+              <button className="qr-modal-close" onClick={() => setSelectedQRCode(null)}>✕</button>
+              <div className="qr-title">Machine Identity QR</div>
+              <div className="qr-subtitle">Scan to view machine health details on mobile</div>
 
-            <div className="qr-image-wrap">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
-                alt="QR Code"
-                width={220}
-                height={220}
-              />
-            </div>
+              <div className="qr-image-wrap">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+                  alt="QR Code"
+                  width={220}
+                  height={220}
+                />
+              </div>
 
-            <div className="qr-details-summary">
-              <div className="qr-detail-row">
-                <span className="qr-detail-label">Machine ID</span>
-                <span className="qr-detail-value">{selectedQRCode.id}</span>
+              <div className="qr-details-summary">
+                <div className="qr-detail-row">
+                  <span className="qr-detail-label">Machine ID</span>
+                  <span className="qr-detail-value">{selectedQRCode.id}</span>
+                </div>
+                <div className="qr-detail-row">
+                  <span className="qr-detail-label">Status</span>
+                  <span className="qr-detail-value">{selectedQRCode.status}</span>
+                </div>
+                <div className="qr-detail-row">
+                  <span className="qr-detail-label">Summary</span>
+                  <span className="qr-detail-value">{selectedQRCode.summary}</span>
+                </div>
+                <a
+                  href={mailtoLink}
+                  className="agent-deep-dive-btn"
+                  style={{
+                    display: "block",
+                    textAlign: "center",
+                    marginTop: 16,
+                    textDecoration: "none",
+                    width: "100%"
+                  }}
+                >
+                  Click Me to Send Email
+                </a>
               </div>
-              <div className="qr-detail-row">
-                <span className="qr-detail-label">Status</span>
-                <span className="qr-detail-value">{selectedQRCode.status}</span>
-              </div>
-              <div className="qr-detail-row">
-                <span className="qr-detail-label">Summary</span>
-                <span className="qr-detail-value">{selectedQRCode.summary}</span>
-              </div>
-              <a
-                href={mailtoLink}
-                className="agent-deep-dive-btn"
-                style={{
-                  display: "block",
-                  textAlign: "center",
-                  marginTop: 16,
-                  textDecoration: "none",
-                  width: "100%"
-                }}
-              >
-                Click Me to Send Email
-              </a>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   )
 }
 
