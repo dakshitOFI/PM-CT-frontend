@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import {
   PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line, CartesianGrid
+  LineChart, Line, CartesianGrid, BarChart, Bar
 } from "recharts"
 
 /* ── SVG Icons ──────────────────────────────────────────────── */
@@ -131,6 +131,8 @@ export default function Dashboard() {
   const [healthyMachines, setHealthyMachines] = useState<any[]>([])
   const [maintenanceData, setMaintenanceData] = useState<any[]>([])
   const [rfpData, setRfpData] = useState<any[]>([])
+  const [depreciationStats, setDepreciationStats] = useState<any>(null)
+  const [depreciationBuckets, setDepreciationBuckets] = useState<any[]>([])
   const [agentLoading, setAgentLoading] = useState(false)
   const [agentSearch, setAgentSearch] = useState("")
   const [rfpSearch, setRfpSearch] = useState("")
@@ -138,6 +140,7 @@ export default function Dashboard() {
   const [healthySearch, setHealthySearch] = useState("")
   const [agentFilter, setAgentFilter] = useState("all")   // "all" | "confirmed" | "pending"
   const [agentPage, setAgentPage] = useState(0)           // sliding window page index
+  const [warrantyPage, setWarrantyPage] = useState(0)
 
   // Derived Mailto Link for QR Code (Single Machine)
   const subject = selectedQRCode ? `Please check the machine with ID: ${selectedQRCode.id}` : ""
@@ -244,6 +247,75 @@ Sent from PMCT Control Tower
     setHealthyMachines(healthy || [])
     setMaintenanceData(maintenance || [])
     setRfpData(rfp || [])
+
+    const combined = [
+      ...(healthy || []),
+      ...(maintenance || []),
+      ...(rfp || [])
+    ]
+
+    if (combined.length > 0) {
+
+      const totalAssets = combined.length
+
+      const totalPurchaseValue = combined.reduce(
+        (sum, m) => sum + (Number(m.purchase_cost) || 0),
+        0
+      )
+
+      const totalDepPercent = combined.reduce(
+        (sum, m) => sum + (Number(m.depreciation_percent) || 0),
+        0
+      )
+
+      const avgDepPercent =
+        totalAssets > 0 ? (totalDepPercent / totalAssets).toFixed(1) : 0
+
+      const highDepCount = combined.filter(
+        m => Number(m.depreciation_percent) >= 80
+      ).length
+
+      setDepreciationStats({
+        totalAssets,
+        totalPurchaseValue,
+        avgDepPercent,
+        highDepCount
+      })
+
+      // Buckets
+      const buckets = [
+        { name: "0-25%", value: 0 },
+        { name: "25-50%", value: 0 },
+        { name: "50-75%", value: 0 },
+        { name: "75-100%", value: 0 },
+      ]
+
+      combined.forEach(m => {
+        const dep = Number(m.depreciation_percent) || 0
+        if (dep <= 25) buckets[0].value++
+        else if (dep <= 50) buckets[1].value++
+        else if (dep <= 75) buckets[2].value++
+        else buckets[3].value++
+      })
+
+      setDepreciationBuckets(buckets)
+
+    } else {
+
+      setDepreciationStats({
+        totalAssets: 0,
+        totalPurchaseValue: 0,
+        avgDepPercent: 0,
+        highDepCount: 0
+      })
+
+      setDepreciationBuckets([
+        { name: "0-25%", value: 0 },
+        { name: "25-50%", value: 0 },
+        { name: "50-75%", value: 0 },
+        { name: "75-100%", value: 0 },
+      ])
+    }
   }
 
   const downloadRfpFile = (item: any) => {
@@ -597,7 +669,7 @@ PMCT Lifecycle Intelligence Tower
                         type="text"
                         placeholder="Search by Machine ID…"
                         value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
+                        onChange={e => { setSearchTerm(e.target.value); setWarrantyPage(0) }}
                         className="search-input"
                       />
                     </div>
@@ -605,7 +677,7 @@ PMCT Lifecycle Intelligence Tower
                     <select
                       id="warranty-filter-tab"
                       value={filter}
-                      onChange={e => setFilter(e.target.value)}
+                      onChange={e => { setFilter(e.target.value); setWarrantyPage(0) }}
                       className="filter-select"
                     >
                       <option value="all">All Status</option>
@@ -616,56 +688,99 @@ PMCT Lifecycle Intelligence Tower
 
                   {/* Machine grid */}
                   <div className="warranty-grid">
-                    {(showAll ? warrantyData : warrantyData.slice(0, 8))
-                      .filter(m => m.machine_id.toString().includes(searchTerm))
-                      .filter(m =>
-                        filter === "all" ? true
-                          : filter === "active" ? m.status === "In Warranty"
-                            : m.status === "Expired"
-                      )
-                      .map((machine, idx) => {
-                        const expired = machine.status === "Expired"
-                        return (
-                          <div
-                            key={machine.machine_id}
-                            className="warranty-card warranty-card-enter"
-                            style={{ animationDelay: `${idx * 60}ms` }}
-                          >
-                            <div className="machine-card-top">
-                              <div>
-                                <div className="machine-id">ID: {machine.machine_id}</div>
-                                <div className="machine-name">{machine.machine_name}</div>
-                              </div>
-                              <span className={`status-badge ${expired ? "status-expired" : "status-active"}`}>
-                                {machine.status}
-                              </span>
-                            </div>
-                            <div className="machine-meta">
-                              <span className="machine-meta-label">Expiry:</span>
-                              {machine.expiry_date.split("T")[0]}
-                            </div>
-                            <div className="machine-meta">
-                              <span className="machine-meta-label">Remaining:</span>
-                              <span style={{ color: expired ? "#ef4444" : "#10b981", fontWeight: 600 }}>
-                                {machine.remaining_days} days
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })
-                    }
-                  </div>
+                    {(() => {
+                      const PAGE_SIZE = 12;
+                      const filtered = warrantyData
+                        .filter(m => m.machine_id.toString().toLowerCase().includes(searchTerm.toLowerCase()))
+                        .filter(m =>
+                          filter === "all" ? true
+                            : filter === "active" ? m.status === "In Warranty"
+                              : m.status === "Expired"
+                        );
 
-                  {!showAll && warrantyData.length > 8 && (
-                    <button
-                      id="btn-show-more-warranty-tab"
-                      className="show-more-btn"
-                      onClick={() => setShowAll(true)}
-                    >
-                      {icons.chevronDown}
-                      Show all {warrantyData.length} machines
-                    </button>
-                  )}
+                      const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+                      const pageItems = filtered.slice(warrantyPage * PAGE_SIZE, (warrantyPage + 1) * PAGE_SIZE);
+
+                      if (pageItems.length === 0) {
+                        return (
+                          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 0", color: "#94a3b8" }}>
+                            <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+                            No machines found for your search or filter criteria.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <>
+                          {pageItems.map((machine, idx) => {
+                            const expired = machine.status === "Expired"
+                            return (
+                              <div
+                                key={machine.machine_id}
+                                className="warranty-card warranty-card-enter"
+                                style={{ animationDelay: `${idx * 60}ms` }}
+                              >
+                                <div className="machine-card-top">
+                                  <div>
+                                    <div className="machine-id">ID: {machine.machine_id}</div>
+                                    <div className="machine-name">{machine.machine_name}</div>
+                                  </div>
+                                  <span className={`status-badge ${expired ? "status-expired" : "status-active"}`}>
+                                    {machine.status}
+                                  </span>
+                                </div>
+                                <div className="machine-meta">
+                                  <span className="machine-meta-label">Expiry:</span>
+                                  {machine.expiry_date.split("T")[0]}
+                                </div>
+                                <div className="machine-meta">
+                                  <span className="machine-meta-label">Remaining:</span>
+                                  <span style={{ color: expired ? "#ef4444" : "#10b981", fontWeight: 600 }}>
+                                    {machine.remaining_days} days
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })}
+
+                          {/* Pagination Controls */}
+                          {totalPages > 1 && (
+                            <div className="agent-pagination" style={{ gridColumn: "1 / -1", marginTop: 24 }}>
+                              <button
+                                className="page-btn"
+                                disabled={warrantyPage === 0}
+                                onClick={() => setWarrantyPage(p => p - 1)}
+                              >
+                                ← Prev
+                              </button>
+
+                              {Array.from({ length: totalPages }).map((_, i) => (
+                                <button
+                                  key={i}
+                                  className={`page-btn ${i === warrantyPage ? "page-btn-active" : ""}`}
+                                  onClick={() => setWarrantyPage(i)}
+                                >
+                                  {i + 1}
+                                </button>
+                              ))}
+
+                              <button
+                                className="page-btn"
+                                disabled={warrantyPage >= totalPages - 1}
+                                onClick={() => setWarrantyPage(p => p + 1)}
+                              >
+                                Next →
+                              </button>
+
+                              <span className="page-info" style={{ marginLeft: 'auto' }}>
+                                {warrantyPage * PAGE_SIZE + 1}–{Math.min((warrantyPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
             </div>
@@ -698,7 +813,7 @@ PMCT Lifecycle Intelligence Tower
                 <div className="agent-info-card">
                   <div className="agent-info-header">
                     <div className="agent-info-icon">🤖</div>
-                    <div className="agent-info-title">Agent 1: Fault Detection</div>
+                    <div className="agent-info-title">ML Fault Detection</div>
                   </div>
                   <div className="agent-info-desc">
                     ML-powered anomaly detection analyzing real-time sensor data to predict and classify machine failures.
@@ -727,7 +842,7 @@ PMCT Lifecycle Intelligence Tower
                   </div>
                   <button
                     className="agent-deep-dive-btn"
-                    onClick={() => setActiveNav("Agent 1")}
+                    onClick={() => setActiveNav("ML Fault Detection")}
                   >
                     Deep Dive Dashboard →
                   </button>
@@ -737,7 +852,7 @@ PMCT Lifecycle Intelligence Tower
                 <div className="agent-info-card">
                   <div className="agent-info-header">
                     <div className="agent-info-icon">⚡</div>
-                    <div className="agent-info-title">Agent 2: Lifecycle Intelligence</div>
+                    <div className="agent-info-title">Lifecycle Intelligence</div>
                   </div>
                   <div className="agent-info-desc">
                     Strategic efficiency optimizer designed to reduce energy consumption and maximize throughput across plants.
@@ -766,7 +881,7 @@ PMCT Lifecycle Intelligence Tower
                   </div>
                   <button
                     className="agent-deep-dive-btn"
-                    onClick={() => setActiveNav("Agent 2")}
+                    onClick={() => setActiveNav("Lifecycle Intelligence")}
                   >
                     Deep Dive Dashboard →
                   </button>
@@ -945,7 +1060,7 @@ PMCT Lifecycle Intelligence Tower
                             type="text"
                             placeholder="Search by Machine ID…"
                             value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            onChange={e => { setSearchTerm(e.target.value); setWarrantyPage(0) }}
                             className="search-input"
                           />
                         </div>
@@ -953,7 +1068,7 @@ PMCT Lifecycle Intelligence Tower
                         <select
                           id="warranty-filter"
                           value={filter}
-                          onChange={e => setFilter(e.target.value)}
+                          onChange={e => { setFilter(e.target.value); setWarrantyPage(0) }}
                           className="filter-select"
                         >
                           <option value="all">All Status</option>
@@ -964,56 +1079,99 @@ PMCT Lifecycle Intelligence Tower
 
                       {/* Machine grid */}
                       <div className="warranty-grid">
-                        {(showAll ? warrantyData : warrantyData.slice(0, 6))
-                          .filter(m => m.machine_id.toString().includes(searchTerm))
-                          .filter(m =>
-                            filter === "all" ? true
-                              : filter === "active" ? m.status === "In Warranty"
-                                : m.status === "Expired"
-                          )
-                          .map((machine, idx) => {
-                            const expired = machine.status === "Expired"
-                            return (
-                              <div
-                                key={machine.machine_id}
-                                className="warranty-card warranty-card-enter"
-                                style={{ animationDelay: `${idx * 60}ms` }}
-                              >
-                                <div className="machine-card-top">
-                                  <div>
-                                    <div className="machine-id">ID: {machine.machine_id}</div>
-                                    <div className="machine-name">{machine.machine_name}</div>
-                                  </div>
-                                  <span className={`status-badge ${expired ? "status-expired" : "status-active"}`}>
-                                    {machine.status}
-                                  </span>
-                                </div>
-                                <div className="machine-meta">
-                                  <span className="machine-meta-label">Expiry:</span>
-                                  {machine.expiry_date.split("T")[0]}
-                                </div>
-                                <div className="machine-meta">
-                                  <span className="machine-meta-label">Remaining:</span>
-                                  <span style={{ color: expired ? "#ef4444" : "#10b981", fontWeight: 600 }}>
-                                    {machine.remaining_days} days
-                                  </span>
-                                </div>
-                              </div>
-                            )
-                          })
-                        }
-                      </div>
+                        {(() => {
+                          const PAGE_SIZE = 12;
+                          const filtered = warrantyData
+                            .filter(m => m.machine_id.toString().toLowerCase().includes(searchTerm.toLowerCase()))
+                            .filter(m =>
+                              filter === "all" ? true
+                                : filter === "active" ? m.status === "In Warranty"
+                                  : m.status === "Expired"
+                            );
 
-                      {!showAll && warrantyData.length > 6 && (
-                        <button
-                          id="btn-show-more-warranty"
-                          className="show-more-btn"
-                          onClick={() => setShowAll(true)}
-                        >
-                          {icons.chevronDown}
-                          Show all {warrantyData.length} machines
-                        </button>
-                      )}
+                          const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+                          const pageItems = filtered.slice(warrantyPage * PAGE_SIZE, (warrantyPage + 1) * PAGE_SIZE);
+
+                          if (pageItems.length === 0) {
+                            return (
+                              <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 0", color: "#94a3b8" }}>
+                                <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+                                No machines found for your search or filter criteria.
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <>
+                              {pageItems.map((machine, idx) => {
+                                const expired = machine.status === "Expired"
+                                return (
+                                  <div
+                                    key={machine.machine_id}
+                                    className="warranty-card warranty-card-enter"
+                                    style={{ animationDelay: `${idx * 60}ms` }}
+                                  >
+                                    <div className="machine-card-top">
+                                      <div>
+                                        <div className="machine-id">ID: {machine.machine_id}</div>
+                                        <div className="machine-name">{machine.machine_name}</div>
+                                      </div>
+                                      <span className={`status-badge ${expired ? "status-expired" : "status-active"}`}>
+                                        {machine.status}
+                                      </span>
+                                    </div>
+                                    <div className="machine-meta">
+                                      <span className="machine-meta-label">Expiry:</span>
+                                      {machine.expiry_date.split("T")[0]}
+                                    </div>
+                                    <div className="machine-meta">
+                                      <span className="machine-meta-label">Remaining:</span>
+                                      <span style={{ color: expired ? "#ef4444" : "#10b981", fontWeight: 600 }}>
+                                        {machine.remaining_days} days
+                                      </span>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+
+                              {/* Pagination Controls */}
+                              {totalPages > 1 && (
+                                <div className="agent-pagination" style={{ gridColumn: "1 / -1", marginTop: 24 }}>
+                                  <button
+                                    className="page-btn"
+                                    disabled={warrantyPage === 0}
+                                    onClick={() => setWarrantyPage(p => p - 1)}
+                                  >
+                                    ← Prev
+                                  </button>
+
+                                  {Array.from({ length: totalPages }).map((_, i) => (
+                                    <button
+                                      key={i}
+                                      className={`page-btn ${i === warrantyPage ? "page-btn-active" : ""}`}
+                                      onClick={() => setWarrantyPage(i)}
+                                    >
+                                      {i + 1}
+                                    </button>
+                                  ))}
+
+                                  <button
+                                    className="page-btn"
+                                    disabled={warrantyPage >= totalPages - 1}
+                                    onClick={() => setWarrantyPage(p => p + 1)}
+                                  >
+                                    Next →
+                                  </button>
+
+                                  <span className="page-info" style={{ marginLeft: 'auto' }}>
+                                    {warrantyPage * PAGE_SIZE + 1}–{Math.min((warrantyPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1528,6 +1686,62 @@ PMCT Lifecycle Intelligence Tower
                 </div>
 
               </div>
+
+              {/* Depreciation Monitor UI */}
+              {depreciationStats && (
+                <>
+                  <div className="section-header" style={{ marginTop: 30 }}>
+                    <div className="section-title">Depreciation Monitor</div>
+                  </div>
+
+                  {/* KPI Cards */}
+                  <div className="agent-overview-grid" style={{ marginBottom: 30 }}>
+
+                    <div className="agent-info-card">
+                      <div className="agent-info-title">Total Assets</div>
+                      <div className="agent-stat-value" style={{ color: "#3b8ee8" }}>
+                        {depreciationStats.totalAssets}
+                      </div>
+                    </div>
+
+                    <div className="agent-info-card">
+                      <div className="agent-info-title">Total Purchase Value</div>
+                      <div className="agent-stat-value">
+                        ₹{depreciationStats.totalPurchaseValue.toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div className="agent-info-card">
+                      <div className="agent-info-title">Avg Depreciation</div>
+                      <div className="agent-stat-value" style={{ color: "#f97316" }}>
+                        {depreciationStats.avgDepPercent}%
+                      </div>
+                    </div>
+
+                    <div className="agent-info-card">
+                      <div className="agent-info-title">Assets &gt; 80% Depreciated</div>
+                      <div className="agent-stat-value" style={{ color: "#ef4444" }}>
+                        {depreciationStats.highDepCount}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Depreciation Chart */}
+                  <div className="chart-card" style={{ marginBottom: 30 }}>
+                    <h3 style={{ marginBottom: 20 }}>Depreciation Distribution</h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={depreciationBuckets}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="value" fill="#3b8ee8" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              )}
 
               {/* ───────────────────────────────────────────── */}
               {/* RFP GENERATED TABLE */}
