@@ -59,6 +59,11 @@ const icons = {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   ),
+  bolt: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  ),
 }
 
 /* ── KPI icon + color config ────────────────────────────────── */
@@ -122,8 +127,15 @@ export default function Dashboard() {
   }, [activeNav])
   const [currentTime, setCurrentTime] = useState("")
   const [anomalies, setAnomalies] = useState<any[]>([])
+  // Agent 2 States
+  const [healthyMachines, setHealthyMachines] = useState<any[]>([])
+  const [maintenanceData, setMaintenanceData] = useState<any[]>([])
+  const [rfpData, setRfpData] = useState<any[]>([])
   const [agentLoading, setAgentLoading] = useState(false)
   const [agentSearch, setAgentSearch] = useState("")
+  const [rfpSearch, setRfpSearch] = useState("")
+  const [maintenanceSearch, setMaintenanceSearch] = useState("")
+  const [healthySearch, setHealthySearch] = useState("")
   const [agentFilter, setAgentFilter] = useState("all")   // "all" | "confirmed" | "pending"
   const [agentPage, setAgentPage] = useState(0)           // sliding window page index
 
@@ -216,6 +228,83 @@ Sent from PMCT Control Tower
     }
   }
 
+  const fetchAgent2Data = async () => {
+    const { data: healthy } = await supabase
+      .from("healthy_machines")
+      .select("*")
+
+    const { data: maintenance } = await supabase
+      .from("maintenance_schedule")
+      .select("*")
+
+    const { data: rfp } = await supabase
+      .from("rfp_generated")
+      .select("*")
+
+    setHealthyMachines(healthy || [])
+    setMaintenanceData(maintenance || [])
+    setRfpData(rfp || [])
+  }
+
+  const downloadRfpFile = (item: any) => {
+    const content = `
+      <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body>
+          <h2>Request for Proposal (RFP)</h2>
+          <p><strong>Machine ID:</strong> ${item.machine_id}</p>
+          <p><strong>Machine Type:</strong> ${item.machine_type}</p>
+          <p><strong>Remaining Life:</strong> ${item.predicted_remaining_life} years</p>
+          <p><strong>Depreciation:</strong> ${item.depreciation_percent}%</p>
+          <p><strong>Purchase Cost:</strong> ₹${item.purchase_cost}</p>
+          <hr/>
+          <h3>RFP Context</h3>
+          <p>${item.rfp_content}</p>
+        </body>
+      </html>
+    `
+
+    const blob = new Blob([content], {
+      type: "application/msword"
+    })
+
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = item.rfp_filename || "rfp_document.doc"
+    link.click()
+  }
+
+  const sendRfpEmail = (item: any) => {
+    const emailSubject = `[URGENT] RFP: Procurement Required for Machine ${item.machine_id}`
+    const emailBody = `
+Hello Procurement Team,
+
+This is the Request for Proposal (RFP) documentation for machine ${item.machine_id}.
+
+Machine Details:
+----------------
+- Machine ID: ${item.machine_id}
+- Machine Type: ${item.machine_type}
+- Remaining Life: ${item.predicted_remaining_life} years
+- Depreciation: ${item.depreciation_percent}%
+- Purchase Cost: ₹${item.purchase_cost?.toLocaleString()}
+- Priority: ${item.priority}
+
+RFP Narrative:
+--------------
+${item.rfp_content}
+
+Note: For the full formal document, please download the .doc file from the PMCT Dashboard.
+
+Regards,
+PMCT Lifecycle Intelligence Tower
+    `.trim()
+
+    window.location.href = `mailto:?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`
+  }
+
   const runAgent = async () => {
     try {
       setAgentLoading(true);
@@ -233,6 +322,45 @@ Sent from PMCT Control Tower
     } catch (error) {
       console.error("Agent failed:", error);
       setAgentLoading(false);
+    }
+  };
+
+  const runAgent2 = async () => {
+    try {
+      setAgentLoading(true);
+
+      // Trigger Agent 2 n8n workflow
+      fetch("https://n8n.sofiatechnology.ai/webhook/agent2", {
+        method: "POST",
+      }).catch(err => console.error("Agent 2 webhook error:", err));
+
+      // 20 second animation delay
+      await new Promise(resolve => setTimeout(resolve, 20000));
+
+      // Reload page
+      window.location.reload();
+    } catch (error) {
+      console.error("Agent 2 failed:", error);
+      setAgentLoading(false);
+    }
+  };
+
+  const deleteAllAgent2 = async () => {
+    if (!window.confirm("Delete ALL Agent 2 records? This cannot be undone.")) return;
+
+    try {
+      await supabase.from("healthy_machines").delete().neq("id", -1);
+      await supabase.from("maintenance_schedule").delete().neq("schedule_id", -1);
+      await supabase.from("rfp_generated").delete().neq("id", -1);
+
+      setHealthyMachines([]);
+      setMaintenanceData([]);
+      setRfpData([]);
+
+      setNotification("All Agent 2 records deleted successfully");
+      setTimeout(() => setNotification(null), 3000);
+    } catch (error) {
+      console.error("Delete Agent 2 error:", error);
     }
   };
   // const confirmIssue = async (id: number) => {
@@ -318,8 +446,12 @@ Sent from PMCT Control Tower
 
 
   useEffect(() => {
-    if (activeNav === "Agent 1") {
+    if (activeNav === "ML Fault Detection") {
       fetchAnomalies()
+    }
+
+    if (activeNav === "Lifecycle Intelligence") {
+      fetchAgent2Data()
     }
   }, [activeNav])
 
@@ -339,9 +471,8 @@ Sent from PMCT Control Tower
   const navItems = [
     { label: "Dashboard", icon: icons.dashboard },
     { label: "Check Warranty", icon: icons.shield },
-    { label: "Failures", icon: icons.failures },
-    { label: "Analytics", icon: icons.analytics },
-    { label: "Agent 1", icon: icons.agent },
+    { label: "ML Fault Detection", icon: icons.agent },
+    { label: "Lifecycle Intelligence", icon: icons.bolt },
   ]
 
   return (
@@ -602,16 +733,43 @@ Sent from PMCT Control Tower
                   </button>
                 </div>
 
-                {/* Agent 2 Placeholder */}
-                <div className="agent-info-card placeholder">
+                {/* Agent 2 Card */}
+                <div className="agent-info-card">
                   <div className="agent-info-header">
-                    <div className="agent-info-icon" style={{ opacity: 0.5 }}>⚡</div>
-                    <div className="agent-info-title" style={{ opacity: 0.5 }}>Agent 2: Optimization</div>
+                    <div className="agent-info-icon">⚡</div>
+                    <div className="agent-info-title">Agent 2: Lifecycle Intelligence</div>
                   </div>
                   <div className="agent-info-desc">
                     Strategic efficiency optimizer designed to reduce energy consumption and maximize throughput across plants.
                   </div>
-                  <div className="agent-placeholder-tag">Coming Soon</div>
+                  <div className="agent-stats-grid">
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Replacement</span>
+                      <span className="agent-stat-value" style={{ color: '#ef4444' }}>{rfpData.length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Maintenance</span>
+                      <span className="agent-stat-value" style={{ color: '#f97316' }}>{maintenanceData.length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Healthy</span>
+                      <span className="agent-stat-value" style={{ color: '#10b981' }}>{healthyMachines.length}</span>
+                    </div>
+                    <div className="agent-stat-item">
+                      <span className="agent-stat-label">Total Assets</span>
+                      <span className="agent-stat-value" style={{ color: '#3b8ee8' }}>{healthyMachines.length + maintenanceData.length + rfpData.length}</span>
+                    </div>
+                    <div className="agent-stat-item full">
+                      <span className="agent-stat-label">Est. Replacement Value</span>
+                      <span className="agent-stat-value">₹{rfpData.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="agent-deep-dive-btn"
+                    onClick={() => setActiveNav("Agent 2")}
+                  >
+                    Deep Dive Dashboard →
+                  </button>
                 </div>
 
                 {/* Agent 3 Placeholder */}
@@ -866,7 +1024,7 @@ Sent from PMCT Control Tower
             </>
           )}
 
-          {activeNav === "Agent 1" && (() => {
+          {activeNav === "ML Fault Detection" && (() => {
             const PAGE_SIZE = 6
 
             // Split into active (non-resolved) and resolved
@@ -890,7 +1048,7 @@ Sent from PMCT Control Tower
 
                 {/* ── Header row ── */}
                 <div className="section-header" style={{ marginBottom: 20 }}>
-                  <div className="section-title">Agent 1 – ML Fault Detection</div>
+                  <div className="section-title">ML Fault Detection</div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <button
                       onClick={runAgent}
@@ -1283,6 +1441,315 @@ Sent from PMCT Control Tower
               </div>
             )
           })()}
+
+          {activeNav === "Lifecycle Intelligence" && (
+            <div className="agent-section">
+
+              <div className="section-header" style={{ marginBottom: 20 }}>
+                <div className="section-title">Lifecycle Intelligence</div>
+
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <button
+                    onClick={runAgent2}
+                    className={`warranty-trigger-btn ${agentLoading ? "loading" : ""}`}
+                    disabled={agentLoading}
+                    style={{ margin: 0, height: "40px", padding: "0 20px" }}
+                  >
+                    {agentLoading ? <span className="btn-spinner" /> : "▶"}
+                    <span style={{ marginLeft: agentLoading ? 8 : 4 }}>
+                      {agentLoading ? "Running Agent…" : "Run Agent"}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={deleteAllAgent2}
+                    className="show-more-btn"
+                    style={{
+                      margin: 0,
+                      height: "40px",
+                      display: "flex",
+                      alignItems: "center",
+                      background: "#dc2626",
+                      color: "#fff",
+                      borderColor: "#dc2626"
+                    }}
+                  >
+                    🗑 Delete All
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Agent 2 Overview Cards ───────────────────── */}
+              <div className="agent-overview-grid" style={{ marginBottom: 30 }}>
+
+                <div className="agent-info-card warranty-card-enter">
+                  <div className="agent-info-header">
+                    <div className="agent-info-icon">📄</div>
+                    <div className="agent-info-title">RFP Generated</div>
+                  </div>
+                  <div className="agent-info-desc">
+                    Machines reaching end-of-life and requiring procurement action.
+                  </div>
+                  <div className="agent-stat-item full">
+                    <span className="agent-stat-value" style={{ color: "#ef4444" }}>
+                      {rfpData.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="agent-info-card warranty-card-enter">
+                  <div className="agent-info-header">
+                    <div className="agent-info-icon">🛠</div>
+                    <div className="agent-info-title">Scheduled Maintenance</div>
+                  </div>
+                  <div className="agent-info-desc">
+                    Preventive maintenance tasks auto-generated by lifecycle rules.
+                  </div>
+                  <div className="agent-stat-item full">
+                    <span className="agent-stat-value" style={{ color: "#f97316" }}>
+                      {maintenanceData.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="agent-info-card warranty-card-enter">
+                  <div className="agent-info-header">
+                    <div className="agent-info-icon">✅</div>
+                    <div className="agent-info-title">Healthy Assets</div>
+                  </div>
+                  <div className="agent-info-desc">
+                    Machines operating within safe lifecycle thresholds.
+                  </div>
+                  <div className="agent-stat-item full">
+                    <span className="agent-stat-value" style={{ color: "#10b981" }}>
+                      {healthyMachines.length}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ───────────────────────────────────────────── */}
+              {/* RFP GENERATED TABLE */}
+              {/* ───────────────────────────────────────────── */}
+              <div className="section-header" style={{ marginBottom: 12 }}>
+                <div className="section-title">Replacement Candidates (RFP Generated)</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {rfpSearch && (
+                    <span style={{ fontSize: 12, color: "var(--grey-400)", fontWeight: 600 }}>
+                      {rfpData.filter(i => i.machine_id?.toLowerCase().includes(rfpSearch.toLowerCase())).length} results
+                    </span>
+                  )}
+                  <div className="search-wrapper" style={{ width: 280 }}>
+                    <span className="search-icon">{icons.search}</span>
+                    <input
+                      type="text"
+                      placeholder="Filter by Machine ID…"
+                      value={rfpSearch}
+                      onChange={e => setRfpSearch(e.target.value)}
+                      className="search-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="agent-table-wrapper">
+                <table className="agent-table">
+                  <thead>
+                    <tr>
+                      <th>Machine ID</th>
+                      <th>Machine Type</th>
+                      <th>Remaining Life</th>
+                      <th>Depreciation %</th>
+                      <th>Purchase Cost</th>
+                      <th>Priority</th>
+                      <th>RFP File</th>
+                      <th>Send RFP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rfpData.filter(item => item.machine_id?.toLowerCase().includes(rfpSearch.toLowerCase())).length > 0 ? (
+                      rfpData
+                        .filter(item => item.machine_id?.toLowerCase().includes(rfpSearch.toLowerCase()))
+                        .map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.machine_id}</td>
+                            <td>{item.machine_type}</td>
+                            <td>{item.predicted_remaining_life} yrs</td>
+                            <td>{item.depreciation_percent}%</td>
+                            <td>₹{item.purchase_cost?.toLocaleString()}</td>
+                            <td>
+                              <span
+                                className="status-badge"
+                                style={{
+                                  background: item.priority?.toLowerCase().includes("critical") ? "rgba(239, 68, 68, 0.1)" :
+                                    item.priority?.toLowerCase().includes("high") ? "rgba(249, 115, 22, 0.1)" :
+                                      "rgba(16, 185, 129, 0.1)",
+                                  color: item.priority?.toLowerCase().includes("critical") ? "#ef4444" :
+                                    item.priority?.toLowerCase().includes("high") ? "#f97316" :
+                                      "#10b981",
+                                  border: `1px solid ${item.priority?.toLowerCase().includes("critical") ? "rgba(239, 68, 68, 0.2)" :
+                                    item.priority?.toLowerCase().includes("high") ? "rgba(249, 115, 22, 0.2)" :
+                                      "rgba(16, 185, 129, 0.2)"
+                                    }`
+                                }}
+                              >
+                                {item.priority}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="anomaly-btn anomaly-btn-confirm"
+                                onClick={() => downloadRfpFile(item)}
+                              >
+                                ⬇ Doc
+                              </button>
+                            </td>
+                            <td>
+                              <button
+                                className="anomaly-btn anomaly-btn-confirm"
+                                style={{ background: "var(--blue-600)", color: "#fff", borderColor: "var(--blue-700)" }}
+                                onClick={() => sendRfpEmail(item)}
+                              >
+                                ✉ Email
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
+                          <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                          {rfpSearch ? `No results found for "${rfpSearch}"` : "No RFPs generated yet."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ───────────────────────────────────────────── */}
+              {/* MAINTENANCE TABLE */}
+              {/* ───────────────────────────────────────────── */}
+              <div className="section-header" style={{ marginTop: 40, marginBottom: 12 }}>
+                <div className="section-title">Scheduled Maintenance</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {maintenanceSearch && (
+                    <span style={{ fontSize: 12, color: "var(--grey-400)", fontWeight: 600 }}>
+                      {maintenanceData.filter(i => i.machine_id?.toLowerCase().includes(maintenanceSearch.toLowerCase())).length} results
+                    </span>
+                  )}
+                  <div className="search-wrapper" style={{ width: 280 }}>
+                    <span className="search-icon">{icons.search}</span>
+                    <input
+                      type="text"
+                      placeholder="Filter by Machine ID…"
+                      value={maintenanceSearch}
+                      onChange={e => setMaintenanceSearch(e.target.value)}
+                      className="search-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="agent-table-wrapper">
+                <table className="agent-table">
+                  <thead>
+                    <tr>
+                      <th>Machine ID</th>
+                      <th>Remaining Life</th>
+                      <th>Scheduled Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {maintenanceData.filter(item => item.machine_id?.toLowerCase().includes(maintenanceSearch.toLowerCase())).length > 0 ? (
+                      maintenanceData
+                        .filter(item => item.machine_id?.toLowerCase().includes(maintenanceSearch.toLowerCase()))
+                        .map((item) => (
+                          <tr key={item.schedule_id}>
+                            <td>{item.machine_id}</td>
+                            <td>{item.predicted_remaining_life} yrs</td>
+                            <td>
+                              {item.scheduled_date
+                                ? item.scheduled_date.split("T")[0]
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td colSpan={3} style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
+                          <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                          {maintenanceSearch ? `No results found for "${maintenanceSearch}"` : "No maintenance scheduled."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ───────────────────────────────────────────── */}
+              {/* HEALTHY MACHINES TABLE */}
+              {/* ───────────────────────────────────────────── */}
+              <div className="section-header" style={{ marginTop: 40, marginBottom: 12 }}>
+                <div className="section-title">Healthy Assets</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {healthySearch && (
+                    <span style={{ fontSize: 12, color: "var(--grey-400)", fontWeight: 600 }}>
+                      {healthyMachines.filter(i => i.machine_id?.toLowerCase().includes(healthySearch.toLowerCase())).length} results
+                    </span>
+                  )}
+                  <div className="search-wrapper" style={{ width: 280 }}>
+                    <span className="search-icon">{icons.search}</span>
+                    <input
+                      type="text"
+                      placeholder="Filter by Machine ID…"
+                      value={healthySearch}
+                      onChange={e => setHealthySearch(e.target.value)}
+                      className="search-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="agent-table-wrapper">
+                <table className="agent-table">
+                  <thead>
+                    <tr>
+                      <th>Machine ID</th>
+                      <th>Machine Name</th>
+                      <th>Machine Type</th>
+                      <th>Remaining Life</th>
+                      <th>Depreciation %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {healthyMachines.filter(item => item.machine_id?.toLowerCase().includes(healthySearch.toLowerCase())).length > 0 ? (
+                      healthyMachines
+                        .filter(item => item.machine_id?.toLowerCase().includes(healthySearch.toLowerCase()))
+                        .map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.machine_id}</td>
+                            <td>{item.machine_name}</td>
+                            <td>{item.machine_type}</td>
+                            <td>{item.predicted_remaining_life} yrs</td>
+                            <td>{item.depreciation_percent}%</td>
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
+                          <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                          {healthySearch ? `No results found for "${healthySearch}"` : "No healthy assets recorded."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          )}
 
         </div>{/* end page-content */}
       </main>
