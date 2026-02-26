@@ -1275,6 +1275,7 @@ PMCT Lifecycle Intelligence Tower
           )}
 
           {activeNav === "Machinery Performance" && (() => {
+            const activeAnomalies = anomalies.filter(a => a.status !== "resolved")
             const resolvedAnomalies = anomalies.filter(a => a.status === "resolved")
 
             return (
@@ -1326,7 +1327,15 @@ PMCT Lifecycle Intelligence Tower
                   </div>
                 </div>
 
-
+                {/* ── Active Anomaly Banner ── */}
+                {activeAnomalies.length > 0 && (
+                  <div className="skeleton-status-bar" style={{ marginBottom: 20 }}>
+                    <span className="skeleton-pulse-dot" style={{ background: "#f97316" }} />
+                    <span className="skeleton-status-text" style={{ color: "#c2410c" }}>
+                      {activeAnomalies.length} active anomaly{activeAnomalies.length !== 1 ? "s" : ""} detected
+                    </span>
+                  </div>
+                )}
 
                 {/* ── Detailed Table View ── */}
                 <div className="agent-table-wrapper">
@@ -1993,7 +2002,7 @@ PMCT Lifecycle Intelligence Tower
                 <SectionTable
                   title="Warranty Claim Candidates"
                   data={warrantyClaimData}
-                  excludeKeys={['part_name', 'fail_count', 'risk_score', 'processed_at']}
+                  excludeKeys={['part_name', 'fail_count', 'risk_score', 'processed_at', 'reason']}
                   renderActions={(item) => {
                     const subject = `Claiming the warranty for Machine: ${item.machine_id} - Part ID: ${item.part_id}`
                     const body = `Dear Warranty Support Team,\n\nWe are writing to officially initiate a warranty claim for the following component:\n\nMachine Details:\n- Machine ID: ${item.machine_id || 'N/A'}\n- Part ID: ${item.part_id || 'N/A'}\n- Failure Description: [Automated Detection of Anomalous Behavior]\n\nAccording to our PMCT Control Tower logs, this part has failed or is showing critical signs of premature failure despite being within the valid warranty period.\n\nPlease provide instructions for the next steps, including any required RMA documentation or site inspection schedules.\n\nBest regards,\nPMCT Maintenance Tower`
