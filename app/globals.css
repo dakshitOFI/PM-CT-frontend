@@ -230,6 +230,47 @@ body {
   opacity: 1;
 }
 
+/* ── Technical View — distinct admin accent ── */
+.nav-item.nav-technical {
+  color: rgba(20, 184, 166, 0.7);
+  border-left: 3px solid rgba(20, 184, 166, 0.3);
+  margin-left: 4px;
+  padding-left: 11px;
+  margin-top: 6px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.nav-item.nav-technical::after {
+  content: 'ADMIN';
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: rgba(20, 184, 166, 0.15);
+  color: #14b8a6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+}
+
+.nav-item.nav-technical:hover {
+  background: rgba(20, 184, 166, 0.1);
+  color: #5eead4;
+  border-left-color: #14b8a6;
+}
+
+.nav-item.nav-technical.active {
+  background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+  color: var(--white);
+  border-left-color: transparent;
+  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.4);
+}
+
+.nav-item.nav-technical.active::after {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
 /* Sidebar footer */
 .sidebar-footer {
   padding: 16px 12px;

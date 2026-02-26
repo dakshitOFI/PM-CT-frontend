@@ -561,6 +561,7 @@ PMCT Lifecycle Intelligence Tower
     }
 
     if (activeNav === "Technical View") {
+      fetchAnomalies()
       const fetchTechData = async () => {
         setTechLoading(true)
         try {
@@ -635,7 +636,7 @@ PMCT Lifecycle Intelligence Tower
           {navItems.map(item => (
             <div
               key={item.label}
-              className={`nav-item ${activeNav === item.label ? "active" : ""}`}
+              className={`nav-item ${activeNav === item.label ? "active" : ""} ${item.label === "Technical View" ? "nav-technical" : ""}`}
               onClick={() => setActiveNav(item.label)}
               id={`nav-${item.label.toLowerCase().replace(" ", "-")}`}
             >
@@ -1274,23 +1275,7 @@ PMCT Lifecycle Intelligence Tower
           )}
 
           {activeNav === "Machinery Performance" && (() => {
-            const PAGE_SIZE = 6
-
-            // Split into active (non-resolved) and resolved
-            const activeAnomalies = anomalies.filter(a => a.status !== "resolved")
             const resolvedAnomalies = anomalies.filter(a => a.status === "resolved")
-
-            // Apply search + filter on active list
-            const filtered = activeAnomalies
-              .filter(a => a.machine_id.toString().includes(agentSearch.trim()))
-              .filter(a =>
-                agentFilter === "all" ? true
-                  : agentFilter === "confirmed" ? a.status === "confirmed"
-                    : a.status !== "confirmed"    // "pending"
-              )
-
-            const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-            const pageItems = filtered.slice(agentPage * PAGE_SIZE, (agentPage + 1) * PAGE_SIZE)
 
             return (
               <div className="agent-section">
@@ -1341,171 +1326,7 @@ PMCT Lifecycle Intelligence Tower
                   </div>
                 </div>
 
-                {/* ── Search + Filter ── */}
-                <div className="warranty-controls" style={{ marginBottom: 20 }}>
-                  <div className="search-wrapper">
-                    <span className="search-icon">{icons.search}</span>
-                    <input
-                      id="agent-search"
-                      type="text"
-                      placeholder="Search by Machine ID…"
-                      value={agentSearch}
-                      onChange={e => { setAgentSearch(e.target.value); setAgentPage(0) }}
-                      className="search-input"
-                    />
-                  </div>
-                  <select
-                    id="agent-filter"
-                    value={agentFilter}
-                    onChange={e => { setAgentFilter(e.target.value); setAgentPage(0) }}
-                    className="filter-select"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="pending">Pending</option>
-                  </select>
-                </div>
 
-                {/* ── Anomaly count banner ── */}
-                {activeAnomalies.length > 0 && (
-                  <div className="skeleton-status-bar" style={{ marginBottom: 20 }}>
-                    <span className="skeleton-pulse-dot" style={{ background: "#f97316" }} />
-                    <span className="skeleton-status-text" style={{ color: "#c2410c" }}>
-                      {activeAnomalies.length} active anomaly{activeAnomalies.length !== 1 ? "s" : ""} detected
-                    </span>
-                    {filtered.length !== activeAnomalies.length && (
-                      <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
-                        Showing {filtered.length} filtered
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Empty state ── */}
-                {activeAnomalies.length === 0 && !agentLoading && (
-                  <div className="agent-empty">
-                    <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-                    <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>No active anomalies</div>
-                    <div style={{ fontSize: 13, color: "#94a3b8" }}>Run the agent to detect ML-predicted faults.</div>
-                  </div>
-                )}
-
-                {/* ── 3-column Card Grid ── */}
-                {pageItems.length > 0 && (
-                  <div className="agent-grid">
-                    {pageItems.map((item, idx) => {
-                      const isConfirmed = item.status === "confirmed"
-                      const prob = Number(item.predicted_probability)
-                      const probColor = prob >= 0.8 ? "#ef4444" : prob >= 0.5 ? "#f97316" : "#10b981"
-
-                      return (
-                        <div
-                          key={item.report_id}
-                          className="anomaly-card warranty-card-enter"
-                          style={{ animationDelay: `${idx * 60}ms` }}
-                        >
-                          {/* Card header */}
-                          <div className="anomaly-card-header">
-                            <div>
-                              <div className="machine-id">Machine ID: {item.machine_id}</div>
-                              <div
-                                className="status-badge"
-                                style={{
-                                  marginTop: 4,
-                                  background: isConfirmed ? "rgba(16,185,129,0.1)" : "rgba(249,115,22,0.1)",
-                                  color: isConfirmed ? "#059669" : "#c2410c",
-                                  border: `1px solid ${isConfirmed ? "rgba(16,185,129,0.25)" : "rgba(249,115,22,0.25)"}`,
-                                }}
-                              >
-                                {isConfirmed ? "Confirmed" : "Pending"}
-                              </div>
-                            </div>
-                            {/* Probability ring */}
-                            <div className="prob-badge" style={{ borderColor: probColor, color: probColor }}>
-                              {Math.round(prob * 100)}%
-                            </div>
-                          </div>
-
-                          {/* Details */}
-                          <div className="anomaly-card-body">
-                            <div className="anomaly-meta-row">
-                              <span className="machine-meta-label">Economic Impact</span>
-                              <span style={{ fontWeight: 600, color: "#1e293b" }}>
-                                ₹{item.economic_impact?.toFixed(2) ?? "—"}
-                              </span>
-                            </div>
-                            {item.issue_summary && (
-                              <div className="anomaly-summary">{item.issue_summary}</div>
-                            )}
-                          </div>
-
-                          {/* Action buttons */}
-                          <div className="anomaly-card-actions">
-                            <button
-                              className="anomaly-btn anomaly-btn-confirm"
-                              // onClick={() => confirmIssue(item.report_id)}
-                              onClick={() => confirmIssue(item)}
-                              title={isConfirmed ? "Issue is already confirmed" : "Confirm this issue"}
-                              disabled={isConfirmed}
-                              style={{ opacity: isConfirmed ? 0.6 : 1, cursor: isConfirmed ? 'not-allowed' : 'pointer' }}
-                            >
-                              {isConfirmed ? "✓ Confirmed" : "✓ Confirm"}
-                            </button>
-                            <button
-                              className="anomaly-btn anomaly-btn-delete"
-                              onClick={() => deleteIssue(item.report_id)}
-                              title="Dismiss — not an issue"
-                            >
-                              ✕ Dismiss
-                            </button>
-                            <button
-                              className="anomaly-btn anomaly-btn-resolve"
-                              onClick={() => resolveIssue(item.report_id)}
-                              title="Mark as resolved"
-                            >
-                              ✔ Resolved
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* ── Pagination (sliding window) ── */}
-                {totalPages > 1 && (
-                  <div className="agent-pagination">
-                    <button
-                      className="page-btn"
-                      disabled={agentPage === 0}
-                      onClick={() => setAgentPage(p => p - 1)}
-                    >
-                      ← Prev
-                    </button>
-
-                    {Array.from({ length: totalPages }).map((_, i) => (
-                      <button
-                        key={i}
-                        className={`page-btn ${i === agentPage ? "page-btn-active" : ""}`}
-                        onClick={() => setAgentPage(i)}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-
-                    <button
-                      className="page-btn"
-                      disabled={agentPage >= totalPages - 1}
-                      onClick={() => setAgentPage(p => p + 1)}
-                    >
-                      Next →
-                    </button>
-
-                    <span className="page-info">
-                      {agentPage * PAGE_SIZE + 1}–{Math.min((agentPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
-                    </span>
-                  </div>
-                )}
 
                 {/* ── Detailed Table View ── */}
                 <div className="agent-table-wrapper">
@@ -2277,6 +2098,199 @@ PMCT Lifecycle Intelligence Tower
                       </div>
                     </div>
                   </div>
+
+                  {/* ─────────────────────────────────────────── */}
+                  {/* TECHNICAL LIVE ANOMALY CONTROL PANEL       */}
+                  {/* ─────────────────────────────────────────── */}
+
+                  <div className="section-header" style={{ marginTop: 30 }}>
+                    <div className="section-title">Live Anomaly Monitor</div>
+                  </div>
+
+                  {/* Search + Filter */}
+                  <div className="warranty-controls" style={{ marginBottom: 20 }}>
+                    <div className="search-wrapper">
+                      <span className="search-icon">{icons.search}</span>
+                      <input
+                        type="text"
+                        placeholder="Search by Machine ID…"
+                        value={agentSearch}
+                        onChange={e => {
+                          setAgentSearch(e.target.value)
+                          setAgentPage(0)
+                        }}
+                        className="search-input"
+                      />
+                    </div>
+
+                    <select
+                      value={agentFilter}
+                      onChange={e => {
+                        setAgentFilter(e.target.value)
+                        setAgentPage(0)
+                      }}
+                      className="filter-select"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                  </div>
+
+                  {/* Anomaly Cards + Pagination */}
+                  {(() => {
+                    const PAGE_SIZE = 6
+                    const activeAnomalies = anomalies.filter(a => a.status !== "resolved")
+                    const filtered = activeAnomalies
+                      .filter(a => a.machine_id.toString().includes(agentSearch.trim()))
+                      .filter(a =>
+                        agentFilter === "all" ? true
+                          : agentFilter === "confirmed" ? a.status === "confirmed"
+                            : a.status !== "confirmed"
+                      )
+                    const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+                    const pageItems = filtered.slice(agentPage * PAGE_SIZE, (agentPage + 1) * PAGE_SIZE)
+
+                    return (
+                      <>
+                        {/* Anomaly count banner */}
+                        {activeAnomalies.length > 0 && (
+                          <div className="skeleton-status-bar" style={{ marginBottom: 20 }}>
+                            <span className="skeleton-pulse-dot" style={{ background: "#f97316" }} />
+                            <span className="skeleton-status-text" style={{ color: "#c2410c" }}>
+                              {activeAnomalies.length} active anomaly{activeAnomalies.length !== 1 ? "s" : ""} detected
+                            </span>
+                            {filtered.length !== activeAnomalies.length && (
+                              <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
+                                Showing {filtered.length} filtered
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Empty state */}
+                        {activeAnomalies.length === 0 && !agentLoading && (
+                          <div className="agent-empty">
+                            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+                            <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: 4 }}>No active anomalies</div>
+                            <div style={{ fontSize: 13, color: "#94a3b8" }}>Run the agent to detect ML-predicted faults.</div>
+                          </div>
+                        )}
+
+                        {/* 3-column Card Grid */}
+                        {pageItems.length > 0 && (
+                          <div className="agent-grid">
+                            {pageItems.map((item: any, idx: number) => {
+                              const isConfirmed = item.status === "confirmed"
+                              const prob = Number(item.predicted_probability)
+                              const probColor = prob >= 0.8 ? "#ef4444" : prob >= 0.5 ? "#f97316" : "#10b981"
+
+                              return (
+                                <div
+                                  key={item.report_id}
+                                  className="anomaly-card warranty-card-enter"
+                                  style={{ animationDelay: `${idx * 60}ms` }}
+                                >
+                                  <div className="anomaly-card-header">
+                                    <div>
+                                      <div className="machine-id">Machine ID: {item.machine_id}</div>
+                                      <div
+                                        className="status-badge"
+                                        style={{
+                                          marginTop: 4,
+                                          background: isConfirmed ? "rgba(16,185,129,0.1)" : "rgba(249,115,22,0.1)",
+                                          color: isConfirmed ? "#059669" : "#c2410c",
+                                          border: `1px solid ${isConfirmed ? "rgba(16,185,129,0.25)" : "rgba(249,115,22,0.25)"}`,
+                                        }}
+                                      >
+                                        {isConfirmed ? "Confirmed" : "Pending"}
+                                      </div>
+                                    </div>
+                                    <div className="prob-badge" style={{ borderColor: probColor, color: probColor }}>
+                                      {Math.round(prob * 100)}%
+                                    </div>
+                                  </div>
+
+                                  <div className="anomaly-card-body">
+                                    <div className="anomaly-meta-row">
+                                      <span className="machine-meta-label">Economic Impact</span>
+                                      <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                                        ₹{item.economic_impact?.toFixed(2) ?? "—"}
+                                      </span>
+                                    </div>
+                                    {item.issue_summary && (
+                                      <div className="anomaly-summary">{item.issue_summary}</div>
+                                    )}
+                                  </div>
+
+                                  <div className="anomaly-card-actions">
+                                    <button
+                                      className="anomaly-btn anomaly-btn-confirm"
+                                      onClick={() => confirmIssue(item)}
+                                      title={isConfirmed ? "Issue is already confirmed" : "Confirm this issue"}
+                                      disabled={isConfirmed}
+                                      style={{ opacity: isConfirmed ? 0.6 : 1, cursor: isConfirmed ? 'not-allowed' : 'pointer' }}
+                                    >
+                                      {isConfirmed ? "✓ Confirmed" : "✓ Confirm"}
+                                    </button>
+                                    <button
+                                      className="anomaly-btn anomaly-btn-delete"
+                                      onClick={() => deleteIssue(item.report_id)}
+                                      title="Dismiss — not an issue"
+                                    >
+                                      ✕ Dismiss
+                                    </button>
+                                    <button
+                                      className="anomaly-btn anomaly-btn-resolve"
+                                      onClick={() => resolveIssue(item.report_id)}
+                                      title="Mark as resolved"
+                                    >
+                                      ✔ Resolved
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                          <div className="agent-pagination">
+                            <button
+                              className="page-btn"
+                              disabled={agentPage === 0}
+                              onClick={() => setAgentPage(p => p - 1)}
+                            >
+                              ← Prev
+                            </button>
+
+                            {Array.from({ length: totalPages }).map((_: any, i: number) => (
+                              <button
+                                key={i}
+                                className={`page-btn ${i === agentPage ? "page-btn-active" : ""}`}
+                                onClick={() => setAgentPage(i)}
+                              >
+                                {i + 1}
+                              </button>
+                            ))}
+
+                            <button
+                              className="page-btn"
+                              disabled={agentPage >= totalPages - 1}
+                              onClick={() => setAgentPage(p => p + 1)}
+                            >
+                              Next →
+                            </button>
+
+                            <span className="page-info">
+                              {agentPage * PAGE_SIZE + 1}–{Math.min((agentPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
 
                   {/* ── Tab Switcher ── */}
                   <div className="tech-tab-bar">
