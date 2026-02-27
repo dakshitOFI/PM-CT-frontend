@@ -124,7 +124,15 @@ export default function Dashboard() {
   const [visuals, setVisuals] = useState<any>(null)
   const [activeNav, setActiveNav] = useState("Dashboard") // will be synced in useEffect
   const [notification, setNotification] = useState<string | null>(null)
-  const [actionsNeeded, setActionsNeeded] = useState<any[]>([])
+  const [actionsNeeded, setActionsNeeded] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("pmct_actions_needed")
+      if (saved) {
+        try { return JSON.parse(saved) } catch { return [] }
+      }
+    }
+    return []
+  })
   const [selectedQRCode, setSelectedQRCode] = useState<any>(null)
 
   /* Persist navigation choice */
@@ -136,6 +144,11 @@ export default function Dashboard() {
   useEffect(() => {
     localStorage.setItem("pmct_active_nav", activeNav)
   }, [activeNav])
+
+  /* Persist Actions Needed to localStorage */
+  useEffect(() => {
+    localStorage.setItem("pmct_actions_needed", JSON.stringify(actionsNeeded))
+  }, [actionsNeeded])
   const [currentTime, setCurrentTime] = useState("")
   const [anomalies, setAnomalies] = useState<any[]>([])
   // Agent 2 States
@@ -637,6 +650,8 @@ PMCT Control Tower
       .neq("report_id", -1)   // matches every row
     console.log("Delete all error:", error)
     setAnomalies([])
+    setActionsNeeded([])
+    localStorage.removeItem("pmct_actions_needed")
     setAgentPage(0)
   }
 
