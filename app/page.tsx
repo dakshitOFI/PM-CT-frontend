@@ -1035,10 +1035,6 @@ PMCT Control Tower
                       <span className="agent-stat-label">Total Assets</span>
                       <span className="agent-stat-value" style={{ color: '#3b8ee8' }}>{healthyMachines.length + maintenanceData.length + rfpData.length}</span>
                     </div>
-                    <div className="agent-stat-item full">
-                      <span className="agent-stat-label">Est. Replacement Value</span>
-                      <span className="agent-stat-value">${rfpData.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0).toLocaleString()}</span>
-                    </div>
                   </div>
                   <button
                     className="agent-deep-dive-btn"
