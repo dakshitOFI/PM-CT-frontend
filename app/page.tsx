@@ -519,6 +519,27 @@ PMCT Control Tower
     }
   };
 
+  const runAgent3 = async () => {
+    try {
+      setAgentLoading(true)
+
+      // Trigger Agent 3 n8n workflow
+      fetch("https://n8n.sofiatechnology.ai/webhook/agent3", {
+        method: "POST",
+      }).catch(err => console.error("Agent 3 webhook error:", err))
+
+      // 20 second loading animation
+      await new Promise(resolve => setTimeout(resolve, 20000))
+
+      // Refresh page to reload new data
+      window.location.reload()
+
+    } catch (error) {
+      console.error("Agent 3 failed:", error)
+      setAgentLoading(false)
+    }
+  }
+
   const deleteAllAgent2 = async () => {
     if (!window.confirm("Delete ALL Agent 2 records? This cannot be undone.")) return;
 
@@ -1802,10 +1823,7 @@ PMCT Control Tower
                         {filteredData.length > 0 ? (
                           filteredData
                             .map((item) => {
-                              const hasContract =
-                                item._source === "po"
-                                  ? item.in_service_contract === true
-                                  : false
+                              const hasContract = item.in_service_contract === true
 
                               return (
                                 <tr key={`${item._source}-${item.id}`}>
@@ -2063,6 +2081,20 @@ PMCT Control Tower
 
                 <div className="section-header">
                   <div className="section-title">Spare-Parts Checker</div>
+
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <button
+                      onClick={runAgent3}
+                      className={`warranty-trigger-btn ${agentLoading ? "loading" : ""}`}
+                      disabled={agentLoading}
+                      style={{ margin: 0, height: "40px", padding: "0 20px" }}
+                    >
+                      {agentLoading ? <span className="btn-spinner" /> : "▶"}
+                      <span style={{ marginLeft: agentLoading ? 8 : 4 }}>
+                        {agentLoading ? "Running Agent…" : "Run Agent"}
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* ── SUPPLY CHAIN KPIs ───────────────────────── */}
