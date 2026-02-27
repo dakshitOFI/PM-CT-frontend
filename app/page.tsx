@@ -64,6 +64,12 @@ const icons = {
       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </svg>
   ),
+  package: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16.5 9.4l-9-5.19" /><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  ),
   technical: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
@@ -360,7 +366,7 @@ Sent from PMCT Control Tower
           <p><strong>Machine Type:</strong> ${item.machine_type}</p>
           <p><strong>Remaining Life:</strong> ${item.predicted_remaining_life} years</p>
           <p><strong>Depreciation:</strong> ${item.depreciation_percent}%</p>
-          <p><strong>Purchase Cost:</strong> ₹${item.purchase_cost}</p>
+          <p><strong>Purchase Cost:</strong> $${item.purchase_cost}</p>
           <hr/>
           <h3>RFP Context</h3>
           <p>${item.rfp_content}</p>
@@ -391,7 +397,7 @@ Machine Details:
 - Machine Type: ${item.machine_type}
 - Remaining Life: ${item.predicted_remaining_life} years
 - Depreciation: ${item.depreciation_percent}%
-- Purchase Cost: ₹${item.purchase_cost?.toLocaleString()}
+- Purchase Cost: $${item.purchase_cost?.toLocaleString()}
 - Priority: ${item.priority}
 
 RFP Narrative:
@@ -613,7 +619,7 @@ PMCT Lifecycle Intelligence Tower
     { label: "Technician View", icon: icons.technical },
     { label: "Machinery Performance", icon: icons.agent },
     { label: "Asset Maintenance", icon: icons.bolt },
-    { label: "Spare-Parts Checker", icon: icons.bolt },
+    { label: "Spare-Parts Checker", icon: icons.package },
   ]
 
   return (
@@ -904,7 +910,7 @@ PMCT Lifecycle Intelligence Tower
                     </div>
                     <div className="agent-stat-item full">
                       <span className="agent-stat-label">Total Economic Impact</span>
-                      <span className="agent-stat-value">₹{anomalies.reduce((sum, a) => sum + (a.economic_impact || 0), 0).toLocaleString()}</span>
+                      <span className="agent-stat-value">${anomalies.reduce((sum, a) => sum + (a.economic_impact || 0), 0).toLocaleString()}</span>
                     </div>
                   </div>
                   <button
@@ -942,7 +948,7 @@ PMCT Lifecycle Intelligence Tower
                     </div>
                     <div className="agent-stat-item full">
                       <span className="agent-stat-label">Est. Replacement Value</span>
-                      <span className="agent-stat-value">₹{rfpData.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0).toLocaleString()}</span>
+                      <span className="agent-stat-value">${rfpData.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0).toLocaleString()}</span>
                     </div>
                   </div>
                   <button
@@ -980,7 +986,7 @@ PMCT Lifecycle Intelligence Tower
                     </div>
                     <div className="agent-stat-item full">
                       <span className="agent-stat-label">Inventory at Risk</span>
-                      <span className="agent-stat-value">₹{[...lowStockData, ...reorderSoonData, ...sufficientStockData].reduce((sum, item) => sum + (Number(item.part_cost) || 0), 0).toLocaleString()}</span>
+                      <span className="agent-stat-value">${[...lowStockData, ...reorderSoonData, ...sufficientStockData].reduce((sum, item) => sum + (Number(item.part_cost) || 0), 0).toLocaleString()}</span>
                     </div>
                   </div>
                   <button
@@ -1497,7 +1503,7 @@ PMCT Lifecycle Intelligence Tower
                           <div className="anomaly-card-body">
                             <div className="anomaly-meta-row">
                               <span className="machine-meta-label">Economic Impact</span>
-                              <span style={{ fontWeight: 600 }}>₹{item.economic_impact?.toFixed(2) ?? "—"}</span>
+                              <span style={{ fontWeight: 600 }}>${item.economic_impact?.toFixed(2) ?? "—"}</span>
                             </div>
                             {item.issue_summary && (
                               <div className="anomaly-summary">{item.issue_summary}</div>
@@ -1628,7 +1634,7 @@ PMCT Lifecycle Intelligence Tower
                     <div className="agent-info-card">
                       <div className="agent-info-title">Total Asset Value</div>
                       <div className="agent-stat-value">
-                        ₹{depreciationStats.totalPurchaseValue.toLocaleString()}
+                        ${depreciationStats.totalPurchaseValue.toLocaleString()}
                       </div>
                     </div>
 
@@ -1712,7 +1718,7 @@ PMCT Lifecycle Intelligence Tower
                             <td>{item.machine_type}</td>
                             <td>{item.predicted_remaining_life} yrs</td>
                             <td>{item.depreciation_percent}%</td>
-                            <td>₹{item.purchase_cost?.toLocaleString()}</td>
+                            <td>${item.purchase_cost?.toLocaleString()}</td>
                             <td>
                               <span
                                 className="status-badge"
@@ -1970,7 +1976,7 @@ PMCT Lifecycle Intelligence Tower
                   <div className="agent-info-card warranty-card-enter">
                     <div className="agent-info-title">Inventory Value at Risk</div>
                     <div className="agent-stat-value">
-                      ₹{totalInventoryValue.toLocaleString()}
+                      ${totalInventoryValue.toLocaleString()}
                     </div>
                   </div>
 
@@ -2213,7 +2219,7 @@ PMCT Lifecycle Intelligence Tower
                                     <div className="anomaly-meta-row">
                                       <span className="machine-meta-label">Economic Impact</span>
                                       <span style={{ fontWeight: 600, color: "#1e293b" }}>
-                                        ₹{item.economic_impact?.toFixed(2) ?? "—"}
+                                        ${item.economic_impact?.toFixed(2) ?? "—"}
                                       </span>
                                     </div>
                                     {item.issue_summary && (
@@ -2330,7 +2336,7 @@ PMCT Lifecycle Intelligence Tower
                       Object.values(m).some(v => String(v).toLowerCase().includes(techSearch.toLowerCase()))
                     )
                     const machineHeaders = techMachines.length > 0
-                      ? Object.keys(techMachines[0]).filter(k => !['id', 'created_at', 'updated_at'].includes(k))
+                      ? Object.keys(techMachines[0]).filter(k => !['id', 'created_at', 'updated_at', 'warranty_expiry', 'install_date', 'purchase_cost', 'remaining_life'].includes(k))
                       : []
 
                     return (
@@ -2393,7 +2399,7 @@ PMCT Lifecycle Intelligence Tower
                       Object.values(f).some(v => String(v).toLowerCase().includes(techSearch.toLowerCase()))
                     )
                     const failHeaders = techFailures.length > 0
-                      ? Object.keys(techFailures[0]).filter(k => !['id', 'created_at', 'updated_at', 'failure_id'].includes(k))
+                      ? Object.keys(techFailures[0]).filter(k => !['id', 'created_at', 'updated_at', 'failure_id', 'total_loss'].includes(k))
                       : []
 
                     return (
@@ -2414,9 +2420,6 @@ PMCT Lifecycle Intelligence Tower
                                   // Highlight certain columns
                                   if (h === 'downtime_hours' && Number(f[h]) > 10) {
                                     return <td key={h} style={{ color: '#ef4444', fontWeight: 700 }}>{val}</td>
-                                  }
-                                  if (h === 'total_loss') {
-                                    return <td key={h} style={{ color: '#f97316', fontWeight: 600 }}>₹{Number(f[h] || 0).toLocaleString()}</td>
                                   }
                                   if (h === 'failure_date') {
                                     return <td key={h}>{val.split('T')[0]}</td>
@@ -2449,7 +2452,7 @@ PMCT Lifecycle Intelligence Tower
                       Object.values(p).some(v => String(v).toLowerCase().includes(techSearch.toLowerCase()))
                     )
                     const partHeaders = allParts.length > 0
-                      ? ['_category', ...Object.keys(allParts[0]).filter(k => !['id', 'created_at', 'updated_at', '_category', 'part_name', 'risk_score', 'processed_at'].includes(k))]
+                      ? ['_category', ...Object.keys(allParts[0]).filter(k => !['id', 'created_at', 'updated_at', '_category', 'part_name', 'risk_score', 'processed_at', 'part_cost', 'reason', 'warranty'].includes(k))]
                       : []
 
                     const categoryColor: Record<string, string> = {
