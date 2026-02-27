@@ -2139,7 +2139,7 @@ PMCT Control Tower
                 <SectionTable
                   title="Low Stock (Critical)"
                   data={lowStockData}
-                  excludeKeys={['part_name', 'stock_gap', 'risk_score', 'processed_at']}
+                  excludeKeys={['part_name', 'stock_gap', 'risk_score', 'processed_at', 'reason']}
                   renderActions={(item) => {
                     const subject = `[URGENT] Alert: Critical Low Stock for Machine ${item.machine_id}`
                     const body = `Hello Procurement Team,\n\nAutomated Alert: A critical low stock condition has been detected.\n\nDetails:\n- Machine ID: ${item.machine_id || 'N/A'}\n- Part ID: ${item.part_id || 'N/A'}\n- Current Stock: ${item.current_stock || '0'}\n- Minimum Required: ${item.minimum_required || '0'}\n\nPlease take immediate action to restock this part.\n\nRegards,\nPMCT Dashboard`
@@ -2183,7 +2183,7 @@ PMCT Control Tower
                 <SectionTable
                   title="Near Obsoletion"
                   data={reorderSoonData}
-                  excludeKeys={['part_name', 'risk_score', 'processed_at', 'rfp_file_name', 'rfp_text']}
+                  excludeKeys={['part_name', 'risk_score', 'processed_at', 'rfp_file_name', 'rfp_text', 'reason']}
                   renderActions={(item) => {
                     const subject = `[ACTION REQUIRED] Near Obsoletion Alert — Part ${item.part_id} on Machine ${item.machine_id}`
                     const body = `Dear Procurement / Maintenance Team,\n\nOur PMCT Control Tower has flagged the following part as approaching obsoletion and requiring immediate attention.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPART DETAILS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n- Machine ID: ${item.machine_id || 'N/A'}\n- Part ID: ${item.part_id || 'N/A'}\n- Current Stock: ${item.current_stock ?? 'N/A'}\n- Min Threshold: ${item.min_threshold ?? 'N/A'}\n- Lead Time (days): ${item.lead_time_days ?? 'N/A'}\n- Part Cost: ${item.part_cost ?? 'N/A'}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nRFP / RECOMMENDATION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${item.rfp_text || 'No RFP text available.'}\n\nPlease review and initiate the procurement or replacement process at the earliest.\n\nBest regards,\nPMCT Control Tower`
