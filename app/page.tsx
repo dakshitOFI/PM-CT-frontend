@@ -1634,22 +1634,6 @@ PMCT Control Tower
                       {agentLoading ? "Running Agent…" : "Run Agent"}
                     </span>
                   </button>
-
-                  <button
-                    onClick={deleteAllAgent2}
-                    className="show-more-btn"
-                    style={{
-                      margin: 0,
-                      height: "40px",
-                      display: "flex",
-                      alignItems: "center",
-                      background: "#dc2626",
-                      color: "#fff",
-                      borderColor: "#dc2626"
-                    }}
-                  >
-                    🗑 Delete All
-                  </button>
                 </div>
               </div>
 
