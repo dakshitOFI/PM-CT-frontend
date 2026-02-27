@@ -1877,12 +1877,13 @@ PMCT Control Tower
                                       <button
                                         className="anomaly-btn anomaly-btn-confirm"
                                         style={{
-                                          background: "#0070F2",
-                                          color: "#fff",
-                                          borderColor: "#005BC5",
+                                          background: "#fff",
+                                          color: "#0070F2",
+                                          border: "1.5px solid #0070F2",
                                           display: "flex",
                                           alignItems: "center",
                                           gap: 6,
+                                          fontWeight: 700,
                                         }}
                                         onClick={() => sendPoEmail(item)}
                                       >
