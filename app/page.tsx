@@ -1861,7 +1861,7 @@ PMCT Control Tower
 
                                   {/* Take Action */}
                                   <td>
-                                    {!hasContract ? (
+                                    {hasContract ? (
                                       <button
                                         className="anomaly-btn anomaly-btn-confirm"
                                         style={{
@@ -1886,10 +1886,9 @@ PMCT Control Tower
                                         }}
                                         onClick={() => sendPoEmail(item)}
                                       >
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                          <path d="M4 4h16v16H4V4z" fill="#fff" fillOpacity="0.2" />
-                                          <path d="M7.5 7h2.2l1.8 4.5L13.3 7h2.2l-3.2 7v4h-2v-4L7.5 7z" fill="#fff" />
-                                          <rect x="3" y="3" width="18" height="18" rx="3" stroke="#fff" strokeWidth="1.5" fill="none" />
+                                        <svg width="28" height="16" viewBox="0 0 60 32" xmlns="http://www.w3.org/2000/svg">
+                                          <polygon points="0,0 46,0 60,32 0,32" fill="#0070F2" />
+                                          <text x="5" y="24" fill="#fff" fontFamily="Arial,Helvetica,sans-serif" fontWeight="900" fontSize="22" letterSpacing="1">SAP</text>
                                         </svg>
                                         Issue PO
                                       </button>
