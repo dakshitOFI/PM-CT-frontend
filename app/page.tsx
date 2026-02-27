@@ -658,6 +658,13 @@ PMCT Control Tower
 
 
   useEffect(() => {
+    if (activeNav === "Dashboard") {
+      // Fetch all agent data so the overview cards show real values
+      fetchAnomalies()
+      fetchAgent2Data()
+      fetchAgent3Data()
+    }
+
     if (activeNav === "Machinery Performance") {
       fetchAnomalies()
     }
