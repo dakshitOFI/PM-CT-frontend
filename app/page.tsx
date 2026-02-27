@@ -1793,85 +1793,91 @@ PMCT Control Tower
                           <th>Depreciation %</th>
                           <th>Purchase Cost</th>
                           <th>Priority</th>
-                          <th>RFP DOC</th>
-                          <th>PO DOC</th>
-                          <th>TAKE ACTION</th>
+                          <th>Machine in Contract</th>
+                          <th>Document</th>
+                          <th>Send</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredData.length > 0 ? (
                           filteredData
-                            .map((item) => (
-                              <tr key={item.id}>
-                                <td>{item.machine_id}</td>
-                                <td>{item.machine_type}</td>
-                                <td>{item.predicted_remaining_life} yrs</td>
-                                <td>{item.depreciation_percent}%</td>
-                                <td>${item.purchase_cost?.toLocaleString()}</td>
-                                <td>
-                                  <span
-                                    className="status-badge"
-                                    style={{
-                                      background: item.priority?.toLowerCase().includes("critical") ? "rgba(239, 68, 68, 0.1)" :
-                                        item.priority?.toLowerCase().includes("high") ? "rgba(249, 115, 22, 0.1)" :
-                                          "rgba(16, 185, 129, 0.1)",
-                                      color: item.priority?.toLowerCase().includes("critical") ? "#ef4444" :
-                                        item.priority?.toLowerCase().includes("high") ? "#f97316" :
-                                          "#10b981",
-                                      border: `1px solid ${item.priority?.toLowerCase().includes("critical") ? "rgba(239, 68, 68, 0.2)" :
-                                        item.priority?.toLowerCase().includes("high") ? "rgba(249, 115, 22, 0.2)" :
-                                          "rgba(16, 185, 129, 0.2)"
-                                        }`
-                                    }}
-                                  >
-                                    {item.priority}
-                                  </span>
-                                </td>
-                                <td>
-                                  {item._source === "rfp" ? (
+                            .map((item) => {
+                              const hasContract =
+                                item._source === "po"
+                                  ? item.in_service_contract === true
+                                  : false
+
+                              return (
+                                <tr key={`${item._source}-${item.id}`}>
+                                  <td>{item.machine_id}</td>
+                                  <td>{item.machine_type}</td>
+                                  <td>{item.predicted_remaining_life} yrs</td>
+                                  <td>{item.depreciation_percent}%</td>
+                                  <td>${item.purchase_cost?.toLocaleString()}</td>
+                                  <td>
+                                    <span
+                                      className="status-badge"
+                                      style={{
+                                        background: item.priority?.toLowerCase().includes("critical") ? "rgba(239, 68, 68, 0.1)" :
+                                          item.priority?.toLowerCase().includes("high") ? "rgba(249, 115, 22, 0.1)" :
+                                            "rgba(16, 185, 129, 0.1)",
+                                        color: item.priority?.toLowerCase().includes("critical") ? "#ef4444" :
+                                          item.priority?.toLowerCase().includes("high") ? "#f97316" :
+                                            "#10b981",
+                                      }}
+                                    >
+                                      {item.priority}
+                                    </span>
+                                  </td>
+
+                                  {/* Machine Contract */}
+                                  <td>
+                                    <span
+                                      className="status-badge"
+                                      style={{
+                                        background: hasContract ? "rgba(16,185,129,0.1)" : "rgba(148,163,184,0.1)",
+                                        color: hasContract ? "#10b981" : "#64748b",
+                                      }}
+                                    >
+                                      {hasContract ? "Yes" : "No"}
+                                    </span>
+                                  </td>
+
+                                  {/* Document */}
+                                  <td>
                                     <button
                                       className="anomaly-btn anomaly-btn-confirm"
-                                      onClick={() => downloadRfpFile(item)}
+                                      onClick={() =>
+                                        item._source === "rfp"
+                                          ? downloadRfpFile(item)
+                                          : downloadPoFile(item)
+                                      }
                                     >
-                                      ⬇ RFP
+                                      ⬇ {item._source === "rfp" ? "RFP" : "PO"}
                                     </button>
-                                  ) : (
-                                    <span style={{ color: "#94a3b8" }}>—</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {item._source === "po" ? (
+                                  </td>
+
+                                  {/* Send */}
+                                  <td>
                                     <button
                                       className="anomaly-btn anomaly-btn-confirm"
-                                      onClick={() => downloadPoFile(item)}
+                                      style={{
+                                        background: "var(--blue-600)",
+                                        color: "#fff",
+                                        borderColor: "var(--blue-700)",
+                                      }}
+                                      onClick={() =>
+                                        item._source === "rfp"
+                                          ? sendRfpEmail(item)
+                                          : sendPoEmail(item)
+                                      }
                                     >
-                                      ⬇ PO
+                                      ✉ Email
                                     </button>
-                                  ) : (
-                                    <span style={{ color: "#94a3b8" }}>—</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {item._source === "rfp" ? (
-                                    <button
-                                      className="anomaly-btn anomaly-btn-confirm"
-                                      style={{ background: "var(--blue-600)", color: "#fff", borderColor: "var(--blue-700)" }}
-                                      onClick={() => sendRfpEmail(item)}
-                                    >
-                                      ✉ Send RFP
-                                    </button>
-                                  ) : (
-                                    <button
-                                      className="anomaly-btn anomaly-btn-confirm"
-                                      style={{ background: "#16a34a", color: "#fff" }}
-                                      onClick={() => sendPoEmail(item)}
-                                    >
-                                      ✉ Send PO
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            ))
+                                  </td>
+                                </tr>
+                              )
+                            })
                         ) : (
                           <tr>
                             <td colSpan={9} style={{ textAlign: "center", padding: 40, color: "var(--grey-400)" }}>
