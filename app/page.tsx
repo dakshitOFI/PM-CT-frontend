@@ -1800,7 +1800,7 @@ PMCT Control Tower
                           <th>Priority</th>
                           <th>Machine in Contract</th>
                           <th>Document</th>
-                          <th>Send</th>
+                          <th>Take Action</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1859,23 +1859,41 @@ PMCT Control Tower
                                     </button>
                                   </td>
 
-                                  {/* Send */}
+                                  {/* Take Action */}
                                   <td>
-                                    <button
-                                      className="anomaly-btn anomaly-btn-confirm"
-                                      style={{
-                                        background: "var(--blue-600)",
-                                        color: "#fff",
-                                        borderColor: "var(--blue-700)",
-                                      }}
-                                      onClick={() =>
-                                        item._source === "rfp"
-                                          ? sendRfpEmail(item)
-                                          : sendPoEmail(item)
-                                      }
-                                    >
-                                      ✉ Email
-                                    </button>
+                                    {!hasContract ? (
+                                      <button
+                                        className="anomaly-btn anomaly-btn-confirm"
+                                        style={{
+                                          background: "var(--blue-600)",
+                                          color: "#fff",
+                                          borderColor: "var(--blue-700)",
+                                        }}
+                                        onClick={() => sendRfpEmail(item)}
+                                      >
+                                        ✉ Send RFP
+                                      </button>
+                                    ) : (
+                                      <button
+                                        className="anomaly-btn anomaly-btn-confirm"
+                                        style={{
+                                          background: "#0070F2",
+                                          color: "#fff",
+                                          borderColor: "#005BC5",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 6,
+                                        }}
+                                        onClick={() => sendPoEmail(item)}
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                          <path d="M4 4h16v16H4V4z" fill="#fff" fillOpacity="0.2" />
+                                          <path d="M7.5 7h2.2l1.8 4.5L13.3 7h2.2l-3.2 7v4h-2v-4L7.5 7z" fill="#fff" />
+                                          <rect x="3" y="3" width="18" height="18" rx="3" stroke="#fff" strokeWidth="1.5" fill="none" />
+                                        </svg>
+                                        Issue PO
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               )
